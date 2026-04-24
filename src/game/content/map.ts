@@ -22,12 +22,20 @@ export interface MapFeature {
   height: number;
 }
 
+export type MovementBlocker = "solid" | "water";
+export type ProjectileBlocker = "solid" | "foliage";
+
+export interface CollisionEntity {
+  kind: string;
+  pveType?: string;
+}
+
 export const WORLD_WIDTH = 1920;
 export const WORLD_HEIGHT = 1080;
 export const WORLD_CENTER_X = WORLD_WIDTH / 2;
 export const WORLD_CENTER_Y = WORLD_HEIGHT / 2;
 
-export const OBSTACLES: RectZone[] = [
+export const SOLID_ZONES: RectZone[] = [
   { id: "west_ruin_1", x: 265, y: 405, width: 170, height: 54 },
   { id: "west_ruin_2", x: 298, y: 455, width: 54, height: 154 },
   { id: "southwest_water_wall", x: 455, y: 620, width: 280, height: 50 },
@@ -43,24 +51,30 @@ export const OBSTACLES: RectZone[] = [
   { id: "crate_stack", x: 1512, y: 925, width: 96, height: 78 }
 ];
 
+export const OBSTACLES = SOLID_ZONES;
+
 export const WATER_ZONES: RectZone[] = [
   { id: "southwest_pond", x: 295, y: 660, width: 260, height: 235 },
   { id: "north_pond", x: 1110, y: 145, width: 230, height: 165 }
 ];
 
+export const FOLIAGE_ZONES: RectZone[] = [
+  { id: "bush_west", x: 100, y: 470, width: 140, height: 155 },
+  { id: "bush_northwest", x: 605, y: 78, width: 84, height: 124 },
+  { id: "bush_center", x: 870, y: 210, width: 110, height: 140 },
+  { id: "bush_northeast", x: 1375, y: 235, width: 130, height: 185 },
+  { id: "bush_east", x: 1578, y: 430, width: 140, height: 116 },
+  { id: "bush_south", x: 1168, y: 765, width: 112, height: 150 },
+  { id: "bush_southeast", x: 1540, y: 748, width: 128, height: 112 }
+];
+
 export const MAP_FEATURES: MapFeature[] = [
-  ...OBSTACLES.map((zone) => ({
+  ...SOLID_ZONES.map((zone) => ({
     ...zone,
     kind: zone.id.includes("crate") ? ("crate" as const) : ("wall" as const)
   })),
   ...WATER_ZONES.map((zone) => ({ ...zone, kind: "water" as const })),
-  { id: "bush_west", kind: "bush", x: 100, y: 470, width: 140, height: 155 },
-  { id: "bush_northwest", kind: "bush", x: 605, y: 78, width: 84, height: 124 },
-  { id: "bush_center", kind: "bush", x: 870, y: 210, width: 110, height: 140 },
-  { id: "bush_northeast", kind: "bush", x: 1375, y: 235, width: 130, height: 185 },
-  { id: "bush_east", kind: "bush", x: 1578, y: 430, width: 140, height: 116 },
-  { id: "bush_south", kind: "bush", x: 1168, y: 765, width: 112, height: 150 },
-  { id: "bush_southeast", kind: "bush", x: 1540, y: 748, width: 128, height: 112 },
+  ...FOLIAGE_ZONES.map((zone) => ({ ...zone, kind: "bush" as const })),
   { id: "barrel_west", kind: "barrel", x: 365, y: 505, width: 42, height: 42 },
   { id: "crate_loot", kind: "crate", x: 630, y: 760, width: 52, height: 52 },
   { id: "north_chest", kind: "crate", x: 690, y: 72, width: 54, height: 54 }
@@ -85,4 +99,25 @@ export const intersectsRect = (
 };
 
 export const collidesWithObstacle = (x: number, y: number, radius: number): boolean =>
-  OBSTACLES.some((obstacle) => intersectsRect(x, y, radius, obstacle));
+  SOLID_ZONES.some((obstacle) => intersectsRect(x, y, radius, obstacle));
+
+export const collidesForMovement = (
+  entity: CollisionEntity,
+  x: number,
+  y: number,
+  radius: number
+): boolean => {
+  if (SOLID_ZONES.some((zone) => intersectsRect(x, y, radius, zone))) {
+    return true;
+  }
+
+  if (entity.kind === "pve" && entity.pveType === "bat") {
+    return false;
+  }
+
+  return WATER_ZONES.some((zone) => intersectsRect(x, y, radius, zone));
+};
+
+export const collidesForProjectile = (x: number, y: number, radius: number): boolean =>
+  SOLID_ZONES.some((zone) => intersectsRect(x, y, radius, zone)) ||
+  FOLIAGE_ZONES.some((zone) => intersectsRect(x, y, radius, zone));

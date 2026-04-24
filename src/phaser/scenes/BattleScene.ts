@@ -38,6 +38,7 @@ interface EntityView {
   lastX: number;
   lastY: number;
   lastHealth: number;
+  lastShield: number;
   currentAnimation?: string;
 }
 
@@ -71,6 +72,7 @@ export class BattleScene extends Phaser.Scene {
   private stormSeaMaskShape!: Phaser.GameObjects.Graphics;
   private stormSeaMask!: Phaser.Display.Masks.GeometryMask;
   private stormEdgeSprites: Phaser.GameObjects.Sprite[] = [];
+  private activeEffects = new Set<Phaser.GameObjects.Sprite>();
   private selectedSlot = 1;
   private useItemQueued = false;
   private lastEventId = 0;
@@ -111,11 +113,12 @@ export class BattleScene extends Phaser.Scene {
   update(_time: number, delta: number) {
     const input = this.collectInput();
     stepSimulation(this.state, input, Math.min(delta, 16.67));
+    const entities = Object.values(this.state.entities);
     window.__battleState = this.state;
     this.renderStorm();
-    this.renderEntities();
+    this.renderEntities(entities);
     this.renderEvents();
-    this.hud.update(this.state);
+    this.hud.update(this.state, entities);
   }
 
   private createInput() {
@@ -309,7 +312,7 @@ export class BattleScene extends Phaser.Scene {
 
     this.stormLayer = this.add.graphics();
     this.stormLayer.setDepth(91);
-    for (let index = 0; index < 18; index += 1) {
+    for (let index = 0; index < 12; index += 1) {
       const edge = this.add.sprite(0, 0, TextureKey.StormEdge);
       edge.play(TextureKey.StormEdge);
       edge.setDepth(93);
@@ -329,11 +332,11 @@ export class BattleScene extends Phaser.Scene {
     this.stormSeaMaskShape.fillCircle(this.state.storm.centerX, this.state.storm.centerY, this.state.storm.radius);
 
     const pulse = 0.35 + Math.abs(Math.sin(this.time.now / 190)) * 0.4;
-    const points = this.buildStormEdgePoints(72, 0);
+    const points = this.buildStormEdgePoints(56, 0);
     this.drawStormPolyline(points, 30, 0x5b20b2, 0.22 + pulse * 0.1);
     this.drawStormPolyline(points, 16, 0x9b55ff, 0.28 + pulse * 0.18);
     this.drawStormPolyline(points, 7, 0xf4ecff, 0.78 + pulse * 0.18);
-    this.drawStormPolyline(this.buildStormEdgePoints(72, 37), 3, 0xffffff, 0.9);
+    this.drawStormPolyline(this.buildStormEdgePoints(56, 37), 3, 0xffffff, 0.9);
     this.stormLayer.lineStyle(2, 0xffffff, 0.32);
     this.stormLayer.strokeCircle(this.state.storm.centerX, this.state.storm.centerY, this.state.storm.radius - 5);
 
@@ -388,10 +391,10 @@ export class BattleScene extends Phaser.Scene {
     this.stormLayer.strokePath();
   }
 
-  private renderEntities() {
+  private renderEntities(entities: EntityState[]) {
     const liveIds = new Set<string>();
 
-    for (const entity of Object.values(this.state.entities)) {
+    for (const entity of entities) {
       if (!entity.alive) {
         continue;
       }
@@ -420,7 +423,8 @@ export class BattleScene extends Phaser.Scene {
       sprite,
       lastX: entity.x,
       lastY: entity.y,
-      lastHealth: entity.health ?? 0
+      lastHealth: Number.NaN,
+      lastShield: Number.NaN
     };
     if (entity.kind === "pickup" && entity.pickupType) {
       this.playEntityAnimation(view, pickupGlowKey(entity.pickupType));
@@ -433,12 +437,12 @@ export class BattleScene extends Phaser.Scene {
     }
     if (entity.kind === "player" || entity.kind === "bot") {
       sprite.setScale(0.72);
-      const label = this.add.text(0, -54, entity.label ?? "", {
+      const label = this.add.text(0, -48, entity.label ?? "", {
         fontFamily: "monospace",
-        fontSize: "15px",
+        fontSize: "13px",
         color: "#f8ffe7",
         stroke: "#172019",
-        strokeThickness: 4
+        strokeThickness: 3
       });
       label.setOrigin(0.5, 1);
       const bar = this.add.graphics();
@@ -472,13 +476,17 @@ export class BattleScene extends Phaser.Scene {
       }
     }
 
-    if (view.bar) {
+    if (
+      view.bar &&
+      ((entity.health ?? 0) !== view.lastHealth || (entity.shield ?? 0) !== view.lastShield)
+    ) {
       this.renderHealthBar(view.bar, entity);
     }
 
     view.lastX = entity.x;
     view.lastY = entity.y;
     view.lastHealth = entity.health ?? view.lastHealth;
+    view.lastShield = entity.shield ?? view.lastShield;
   }
 
   private playEntityAnimation(view: EntityView, animationKey: string) {
@@ -495,17 +503,17 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private renderHealthBar(graphics: Phaser.GameObjects.Graphics, entity: EntityState) {
-    const width = 58;
+    const width = 46;
     const healthRatio = Math.max(0, Math.min(1, (entity.health ?? 0) / (entity.maxHealth ?? 100)));
     const shieldRatio = Math.max(0, Math.min(1, (entity.shield ?? 0) / 60));
     graphics.clear();
     graphics.fillStyle(0x121712, 0.92);
-    graphics.fillRoundedRect(-width / 2, -42, width, 9, 2);
+    graphics.fillRoundedRect(-width / 2, -37, width, 7, 2);
     graphics.fillStyle(0x80e05c, 1);
-    graphics.fillRoundedRect(-width / 2 + 2, -40, (width - 4) * healthRatio, 5, 1);
+    graphics.fillRoundedRect(-width / 2 + 2, -35, (width - 4) * healthRatio, 4, 1);
     if (shieldRatio > 0) {
       graphics.fillStyle(0x62c8ff, 1);
-      graphics.fillRoundedRect(-width / 2 + 2, -34, (width - 4) * shieldRatio, 3, 1);
+      graphics.fillRoundedRect(-width / 2 + 2, -30, (width - 4) * shieldRatio, 2, 1);
     }
   }
 
@@ -518,18 +526,33 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private spawnEventFx(event: GameEvent) {
+    if (this.activeEffects.size > 36) {
+      const oldest = this.activeEffects.values().next().value;
+      oldest?.destroy();
+      if (oldest) {
+        this.activeEffects.delete(oldest);
+      }
+    }
     const animationKey =
       event.type === "pickup" ? "fx-pickup-ring" : event.type === "shoot" ? "fx-muzzle-flash" : TextureKey.Spark;
     const effect = this.add.sprite(event.x, event.y, animationKey);
+    this.activeEffects.add(effect);
     effect.setDepth(85);
     effect.play(animationKey);
-    effect.once(Phaser.Animations.Events.ANIMATION_REPEAT, () => effect.destroy());
+    const destroyEffect = () => {
+      if (!effect.active) {
+        return;
+      }
+      this.activeEffects.delete(effect);
+      effect.destroy();
+    };
+    effect.once(Phaser.Animations.Events.ANIMATION_REPEAT, destroyEffect);
     this.tweens.add({
       targets: effect,
       alpha: 0,
       duration: event.type === "pickup" ? 520 : 280,
       delay: event.type === "pickup" ? 120 : 80,
-      onComplete: () => effect.destroy()
+      onComplete: destroyEffect
     });
   }
 

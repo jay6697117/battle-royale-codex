@@ -1,4 +1,10 @@
-import { clampToWorld, collidesWithObstacle, WORLD_CENTER_X, WORLD_CENTER_Y } from "../content/map";
+import {
+  clampToWorld,
+  collidesForMovement,
+  collidesForProjectile,
+  WORLD_CENTER_X,
+  WORLD_CENTER_Y
+} from "../content/map";
 import { WEAPONS, weaponForSlot, type WeaponId } from "../content/weapons";
 import type { InputFrame } from "../input/actions";
 
@@ -96,6 +102,7 @@ const STEP_MS = 50;
 const FIGHTER_RADIUS = 17;
 const PROJECTILE_RADIUS = 5;
 const PICKUP_RADIUS = 16;
+type EntityList = EntityState[];
 
 export const createInitialGameState = (): GameState => {
   const entities: Record<string, EntityState> = {};
@@ -186,17 +193,18 @@ const stepFixed = (state: GameState, input: InputFrame, deltaMs: number) => {
   }
 
   state.matchTimeMs += deltaMs;
+  const entities = Object.values(state.entities);
   updateStorm(state, deltaMs);
-  updateCooldowns(state, deltaMs);
+  updateCooldowns(entities, deltaMs);
   updatePlayer(state, input, deltaMs);
-  updateBots(state, deltaMs);
-  updatePve(state, deltaMs);
-  updateProjectiles(state, deltaMs);
-  applyStormDamage(state, deltaMs);
-  collectPickups(state);
+  updateBots(state, entities, deltaMs);
+  updatePve(state, entities, deltaMs);
+  updateProjectiles(state, entities, deltaMs);
+  applyStormDamage(entities, state, deltaMs);
+  collectPickups(state, entities);
   applyUsableItem(state, input);
-  updateScoreboard(state);
-  resolvePhase(state);
+  updateScoreboard(state, entities);
+  resolvePhase(state, entities);
 };
 
 const createFighter = (
@@ -282,8 +290,8 @@ const updateStorm = (state: GameState, deltaMs: number) => {
     state.storm.initialRadius - (state.storm.initialRadius - state.storm.minRadius) * eased;
 };
 
-const updateCooldowns = (state: GameState, deltaMs: number) => {
-  for (const entity of Object.values(state.entities)) {
+const updateCooldowns = (entities: EntityList, deltaMs: number) => {
+  for (const entity of entities) {
     if (entity.fireCooldownMs !== undefined) {
       entity.fireCooldownMs = Math.max(0, entity.fireCooldownMs - deltaMs);
     }
@@ -327,17 +335,17 @@ const updatePlayer = (state: GameState, input: InputFrame, deltaMs: number) => {
   }
 };
 
-const updateBots = (state: GameState, deltaMs: number) => {
-  const bots = Object.values(state.entities).filter(
+const updateBots = (state: GameState, entities: EntityList, deltaMs: number) => {
+  const bots = entities.filter(
     (entity): entity is EntityState => entity.kind === "bot" && entity.alive
   );
   let botShotsThisFrame = 0;
 
   for (const bot of bots) {
     if ((bot.aiThinkMs ?? 0) <= 0) {
-      const target = chooseBotTarget(state, bot);
+      const target = chooseBotTarget(state, bot, entities);
       bot.aiTargetId = target?.id;
-      bot.aiMoveAngle = chooseBotMoveAngle(state, bot, target);
+      bot.aiMoveAngle = chooseBotMoveAngle(state, bot, target, entities);
       bot.aiThinkMs = 280 + Math.random() * 180;
     }
 
@@ -365,8 +373,12 @@ const updateBots = (state: GameState, deltaMs: number) => {
   }
 };
 
-export const chooseBotTarget = (state: GameState, bot: EntityState): EntityState | undefined => {
-  const candidates = Object.values(state.entities).filter(
+export const chooseBotTarget = (
+  state: GameState,
+  bot: EntityState,
+  entities: EntityState[] = Object.values(state.entities)
+): EntityState | undefined => {
+  const candidates = entities.filter(
     (entity) =>
       entity.id !== bot.id &&
       entity.alive &&
@@ -388,9 +400,10 @@ export const chooseBotTarget = (state: GameState, bot: EntityState): EntityState
 const chooseBotMoveAngle = (
   state: GameState,
   bot: EntityState,
-  target: EntityState | undefined
+  target: EntityState | undefined,
+  entities: EntityList
 ): number => {
-  const lowHealthPickup = Object.values(state.entities).find(
+  const lowHealthPickup = entities.find(
     (entity) =>
       entity.kind === "pickup" &&
       entity.alive &&
@@ -410,14 +423,14 @@ const chooseBotMoveAngle = (
   return (bot.aiMoveAngle ?? 0) + 0.5;
 };
 
-const updatePve = (state: GameState, deltaMs: number) => {
-  const pveEntities = Object.values(state.entities).filter(
+const updatePve = (state: GameState, entities: EntityList, deltaMs: number) => {
+  const pveEntities = entities.filter(
     (entity): entity is EntityState => entity.kind === "pve" && entity.alive
   );
 
   for (const pve of pveEntities) {
     if ((pve.aiThinkMs ?? 0) <= 0) {
-      const target = nearestFighter(state, pve);
+      const target = nearestFighter(entities, pve);
       if (target && distanceBetween(pve, target) < 320) {
         pve.aiMoveAngle = Math.atan2(target.y - pve.y, target.x - pve.x);
       } else {
@@ -433,7 +446,7 @@ const updatePve = (state: GameState, deltaMs: number) => {
       Math.sin(pve.aiMoveAngle ?? 0) * (pve.speed ?? 0) * pulse * (deltaMs / 1_000)
     );
 
-    const target = nearestFighter(state, pve);
+    const target = nearestFighter(entities, pve);
     if (
       target &&
       (pve.touchCooldownMs ?? 0) <= 0 &&
@@ -449,8 +462,8 @@ const updatePve = (state: GameState, deltaMs: number) => {
   }
 };
 
-const updateProjectiles = (state: GameState, deltaMs: number) => {
-  const projectiles = Object.values(state.entities).filter(
+const updateProjectiles = (state: GameState, entities: EntityList, deltaMs: number) => {
+  const projectiles = entities.filter(
     (entity): entity is EntityState => entity.kind === "projectile" && entity.alive
   );
 
@@ -463,12 +476,12 @@ const updateProjectiles = (state: GameState, deltaMs: number) => {
     projectile.y += moveY;
     projectile.distanceLeft = (projectile.distanceLeft ?? 0) - Math.hypot(moveX, moveY);
 
-    if (projectile.distanceLeft <= 0 || collidesWithObstacle(projectile.x, projectile.y, projectile.radius)) {
+    if (projectile.distanceLeft <= 0 || collidesForProjectile(projectile.x, projectile.y, projectile.radius)) {
       projectile.alive = false;
       continue;
     }
 
-    const hit = Object.values(state.entities).find(
+    const hit = entities.find(
       (entity) =>
         entity.alive &&
         isDamageable(entity) &&
@@ -523,13 +536,13 @@ const fireWeapon = (
   return true;
 };
 
-const collectPickups = (state: GameState) => {
+const collectPickups = (state: GameState, entities: EntityList) => {
   const player = state.entities[state.playerId];
   if (!isLivingFighter(player)) {
     return;
   }
 
-  for (const pickup of Object.values(state.entities)) {
+  for (const pickup of entities) {
     if (pickup.kind !== "pickup" || !pickup.alive || distanceBetween(player, pickup) > player.radius + pickup.radius + 8) {
       continue;
     }
@@ -587,8 +600,8 @@ const applyUsableItem = (state: GameState, input: InputFrame) => {
   }
 };
 
-const applyStormDamage = (state: GameState, deltaMs: number) => {
-  for (const entity of Object.values(state.entities)) {
+const applyStormDamage = (entities: EntityList, state: GameState, deltaMs: number) => {
+  for (const entity of entities) {
     if (!entity.alive || !isDamageable(entity)) {
       continue;
     }
@@ -639,12 +652,12 @@ const moveEntity = (entity: EntityState, dx: number, dy: number) => {
 
   const radius = entity.radius;
   const nextX = clampToWorld(entity.x + dx, entity.y, radius);
-  if (!collidesWithObstacle(nextX.x, nextX.y, radius)) {
+  if (!collidesForMovement(entity, nextX.x, nextX.y, radius)) {
     entity.x = nextX.x;
   }
 
   const nextY = clampToWorld(entity.x, entity.y + dy, radius);
-  if (!collidesWithObstacle(nextY.x, nextY.y, radius)) {
+  if (!collidesForMovement(entity, nextY.x, nextY.y, radius)) {
     entity.y = nextY.y;
   }
 };
@@ -660,26 +673,38 @@ const stormAvoidanceVector = (state: GameState, entity: EntityState) => {
   return { x: dx / distance, y: dy / distance };
 };
 
-const nearestFighter = (state: GameState, from: EntityState): EntityState | undefined => {
-  return Object.values(state.entities)
-    .filter((entity) => entity.id !== from.id && entity.alive && (entity.kind === "player" || entity.kind === "bot"))
-    .sort((a, b) => distanceBetween(from, a) - distanceBetween(from, b))[0];
+const nearestFighter = (entities: EntityList, from: EntityState): EntityState | undefined => {
+  let nearest: EntityState | undefined;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+
+  for (const entity of entities) {
+    if (entity.id === from.id || !entity.alive || (entity.kind !== "player" && entity.kind !== "bot")) {
+      continue;
+    }
+    const distance = distanceBetween(from, entity);
+    if (distance < nearestDistance) {
+      nearest = entity;
+      nearestDistance = distance;
+    }
+  }
+
+  return nearest;
 };
 
-const updateScoreboard = (state: GameState) => {
-  state.scoreboard.aliveFighters = Object.values(state.entities).filter(
+const updateScoreboard = (state: GameState, entities: EntityList) => {
+  state.scoreboard.aliveFighters = entities.filter(
     (entity) => entity.alive && (entity.kind === "player" || entity.kind === "bot")
   ).length;
 };
 
-const resolvePhase = (state: GameState) => {
+const resolvePhase = (state: GameState, entities: EntityList) => {
   const player = state.entities[state.playerId];
   if (!isLivingFighter(player)) {
     state.phase = "lost";
     return;
   }
 
-  const livingBots = Object.values(state.entities).filter((entity) => entity.kind === "bot" && entity.alive);
+  const livingBots = entities.filter((entity) => entity.kind === "bot" && entity.alive);
   if (livingBots.length === 0) {
     state.phase = "won";
   }

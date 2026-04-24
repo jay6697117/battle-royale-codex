@@ -60,4 +60,26 @@ describe("asset manifest", () => {
     }
     expect(readPngInfo(ground.path).colorType, TextureKey.ArenaGround).toBe(2);
   });
+
+  it("uses large transparent HUD inventory icons", () => {
+    const hudIconKeys = [
+      TextureKey.HudPistolIcon,
+      TextureKey.HudShotgunIcon,
+      TextureKey.HudRifleIcon,
+      TextureKey.HudShieldIcon,
+      TextureKey.HudMedkitIcon
+    ];
+
+    for (const key of hudIconKeys) {
+      const asset = UI_ASSETS.find((item) => item.key === key);
+      expect(asset, key).toBeDefined();
+      if (!asset) {
+        throw new Error(`Missing HUD icon asset ${key}`);
+      }
+      const info = readPngInfo(asset.path);
+      expect(info.width, key).toBe(96);
+      expect(info.height, key).toBe(96);
+      expect(hasAlpha(info), key).toBe(true);
+    }
+  });
 });

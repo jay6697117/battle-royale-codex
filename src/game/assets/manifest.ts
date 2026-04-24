@@ -15,6 +15,7 @@ export const TextureKey = {
   Slime: "enemy-slime-idle",
   Projectile: "fx-projectile-bullet",
   Spark: "fx-hit-spark",
+  Pistol: "pickup-pistol",
   Ammo: "pickup-ammo",
   Medkit: "pickup-medkit",
   Shield: "pickup-shield",
@@ -29,7 +30,12 @@ export const TextureKey = {
   InventorySlotActive: "ui-inventory-slot-active",
   StatPill: "ui-stat-pill",
   ActionButton: "ui-action-button",
-  MiniMapFrame: "ui-minimap-frame"
+  MiniMapFrame: "ui-minimap-frame",
+  HudPistolIcon: "ui-item-pistol",
+  HudShotgunIcon: "ui-item-shotgun",
+  HudRifleIcon: "ui-item-rifle",
+  HudShieldIcon: "ui-item-shield",
+  HudMedkitIcon: "ui-item-medkit"
 } as const;
 
 export type TextureKey = (typeof TextureKey)[keyof typeof TextureKey];
@@ -55,6 +61,7 @@ export const IMAGE_ASSETS: ImageAsset[] = [
   { key: TextureKey.ArenaGround, path: "/assets/maps/arena-ground.png" },
   { key: TextureKey.StormSea, path: "/assets/fx/storm-sea.png" },
   { key: TextureKey.Projectile, path: "/assets/fx/projectile-bullet.png", requiresAlpha: true },
+  { key: TextureKey.Pistol, path: "/assets/pickups/pistol.png", requiresAlpha: true },
   { key: TextureKey.Ammo, path: "/assets/pickups/ammo.png", requiresAlpha: true },
   { key: TextureKey.Medkit, path: "/assets/pickups/medkit.png", requiresAlpha: true },
   { key: TextureKey.Shield, path: "/assets/pickups/shield.png", requiresAlpha: true },
@@ -73,6 +80,11 @@ export const UI_ASSETS: ImageAsset[] = [
   { key: TextureKey.StatPill, path: "/assets/ui/stat-pill.png", requiresAlpha: true },
   { key: TextureKey.ActionButton, path: "/assets/ui/action-button.png", requiresAlpha: true },
   { key: TextureKey.MiniMapFrame, path: "/assets/ui/minimap-frame.png", requiresAlpha: true },
+  { key: TextureKey.HudPistolIcon, path: "/assets/ui/items/pistol.png", requiresAlpha: true },
+  { key: TextureKey.HudShotgunIcon, path: "/assets/ui/items/shotgun.png", requiresAlpha: true },
+  { key: TextureKey.HudRifleIcon, path: "/assets/ui/items/rifle.png", requiresAlpha: true },
+  { key: TextureKey.HudShieldIcon, path: "/assets/ui/items/shield.png", requiresAlpha: true },
+  { key: TextureKey.HudMedkitIcon, path: "/assets/ui/items/medkit.png", requiresAlpha: true },
   { key: "ui-rank-1", path: "/assets/ui/rank-1.png", requiresAlpha: true },
   { key: "ui-rank-2", path: "/assets/ui/rank-2.png", requiresAlpha: true },
   { key: "ui-rank-3", path: "/assets/ui/rank-3.png", requiresAlpha: true },

@@ -35,6 +35,7 @@ def ensure_dirs() -> None:
         "props",
         "fx",
         "ui",
+        "ui/items",
     ]:
         (ASSET_ROOT / path).mkdir(parents=True, exist_ok=True)
 
@@ -292,6 +293,23 @@ def make_icon(kind: str, size: int = 48, glow: int = 0) -> Image.Image:
         for x in [14, 21, 28]:
             draw.rectangle((x, 13, x + 5, 34), fill=rgba("#d98b3a"), outline=rgba("#4a2c17"))
             draw.polygon([(x, 13), (x + 2, 8), (x + 5, 13)], fill=rgba("#f2d48a"))
+    elif kind == "pistol":
+        draw.rectangle((11, 23, 29, 30), fill=rgba("#3d342a"), outline=rgba("#171412"))
+        draw.rectangle((24, 18, 39, 24), fill=rgba("#272727"), outline=rgba("#111111"))
+        draw.rectangle((29, 16, 39, 19), fill=rgba("#8e9290"))
+        draw.rectangle((13, 28, 21, 38), fill=rgba("#8b5631"), outline=rgba("#3b2415"))
+        draw.rectangle((21, 26, 27, 31), fill=rgba("#171412"))
+    elif kind == "shotgun":
+        draw.rectangle((7, 24, 35, 29), fill=rgba("#7a4b28"), outline=rgba("#2b1b12"))
+        draw.rectangle((27, 20, 43, 24), fill=rgba("#242424"), outline=rgba("#101010"))
+        draw.rectangle((10, 30, 18, 37), fill=rgba("#9a6538"), outline=rgba("#3b2415"))
+        draw.line((31, 29, 43, 35), fill=rgba("#1a1a1a"), width=2)
+    elif kind == "rifle":
+        draw.rectangle((8, 25, 33, 30), fill=rgba("#6d4124"), outline=rgba("#26160f"))
+        draw.rectangle((28, 20, 44, 24), fill=rgba("#202020"), outline=rgba("#0d0d0d"))
+        draw.rectangle((38, 19, 47, 22), fill=rgba("#2b2b2b"))
+        draw.rectangle((11, 30, 19, 38), fill=rgba("#8b5631"), outline=rgba("#3b2415"))
+        draw.line((28, 30, 38, 38), fill=rgba("#171717"), width=2)
     else:
         draw.rectangle((11, 23, 35, 29), fill=rgba("#2b241d"))
         draw.rectangle((23, 18, 40, 23), fill=rgba("#171717"))
@@ -299,8 +317,67 @@ def make_icon(kind: str, size: int = 48, glow: int = 0) -> Image.Image:
     return image
 
 
+def make_hud_item_icon(kind: str) -> Image.Image:
+    image = Image.new("RGBA", (96, 96), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    draw.ellipse((15, 66, 82, 82), fill=rgba("#000000", 80))
+
+    def line(points: Iterable[tuple[int, int]], fill: Color, width: int, outline: int = 0) -> None:
+        points_list = list(points)
+        if outline:
+            draw.line(points_list, fill=rgba("#08090b"), width=width + outline * 2, joint="curve")
+        draw.line(points_list, fill=fill, width=width, joint="curve")
+
+    if kind == "pistol":
+        draw.rectangle((21, 40, 63, 55), fill=rgba("#08090b"))
+        draw.rectangle((25, 36, 68, 48), fill=rgba("#d1d5cf"), outline=rgba("#101216"), width=4)
+        draw.rectangle((62, 39, 79, 45), fill=rgba("#8a918b"), outline=rgba("#101216"), width=3)
+        draw.rectangle((27, 49, 52, 61), fill=rgba("#33281f"), outline=rgba("#101216"), width=3)
+        draw.polygon([(29, 58), (47, 58), (42, 79), (25, 79)], fill=rgba("#9a5e32"), outline=rgba("#24150d"))
+        draw.rectangle((32, 61, 43, 67), fill=rgba("#c68545"))
+        draw.rectangle((51, 48, 58, 56), fill=rgba("#17181a"))
+        draw.rectangle((35, 39, 54, 42), fill=rgba("#f2f3e9"))
+    elif kind == "shotgun":
+        line([(18, 52), (76, 40)], rgba("#101114"), 12, 3)
+        line([(31, 47), (82, 36)], rgba("#c0c5bb"), 5, 3)
+        line([(18, 56), (52, 48)], rgba("#8f542b"), 11, 3)
+        draw.polygon([(14, 54), (31, 50), (28, 65), (12, 71)], fill=rgba("#a76937"), outline=rgba("#21130c"))
+        draw.rectangle((38, 52, 56, 60), fill=rgba("#c27b3c"), outline=rgba("#21130c"), width=3)
+        draw.rectangle((75, 34, 87, 40), fill=rgba("#e3e7dc"), outline=rgba("#101114"), width=2)
+    elif kind == "rifle":
+        line([(16, 58), (78, 35)], rgba("#101114"), 12, 3)
+        line([(34, 47), (88, 28)], rgba("#bcc2bb"), 5, 3)
+        line([(17, 62), (57, 47)], rgba("#8b542e"), 12, 3)
+        draw.polygon([(14, 58), (31, 52), (29, 70), (12, 77)], fill=rgba("#a86a38"), outline=rgba("#21130c"))
+        draw.polygon([(52, 52), (66, 48), (69, 66), (57, 70)], fill=rgba("#25272a"), outline=rgba("#0b0c0d"))
+        draw.rectangle((43, 41, 61, 48), fill=rgba("#bf793c"), outline=rgba("#21130c"), width=3)
+        draw.rectangle((79, 25, 93, 31), fill=rgba("#e3e7dc"), outline=rgba("#101114"), width=2)
+    elif kind == "shield":
+        draw.polygon(
+            [(48, 10), (76, 22), (70, 62), (48, 82), (26, 62), (20, 22)],
+            fill=rgba("#101216"),
+        )
+        draw.polygon(
+            [(48, 14), (72, 24), (67, 59), (48, 77), (29, 59), (24, 24)],
+            fill=rgba("#4aa8ff"),
+            outline=rgba("#e9f7ff"),
+        )
+        draw.polygon([(48, 18), (66, 26), (62, 56), (48, 70)], fill=rgba("#2f89e6"))
+        draw.line((48, 20, 48, 70), fill=rgba("#dff4ff"), width=4)
+    elif kind == "medkit":
+        draw.rounded_rectangle((21, 22, 76, 71), radius=7, fill=rgba("#111216"))
+        draw.rounded_rectangle((25, 18, 72, 66), radius=7, fill=rgba("#f4f3ea"), outline=rgba("#15171c"), width=5)
+        draw.rectangle((43, 25, 55, 60), fill=rgba("#d92d2d"))
+        draw.rectangle((31, 37, 67, 49), fill=rgba("#d92d2d"))
+        draw.rectangle((38, 13, 59, 21), fill=rgba("#f4f3ea"), outline=rgba("#15171c"), width=4)
+    else:
+        return make_icon(kind, size=96)
+
+    return image
+
+
 def generate_pickups_and_props() -> None:
-    for kind in ["ammo", "medkit", "shield", "rifle", "shotgun", "coin"]:
+    for kind in ["ammo", "medkit", "shield", "pistol", "rifle", "shotgun", "coin"]:
         save(make_icon(kind), f"pickups/{kind}.png")
         sheet = Image.new("RGBA", (48 * 4, 48), (0, 0, 0, 0))
         for frame in range(4):
@@ -390,25 +467,25 @@ def generate_fx() -> None:
         edge.alpha_composite(image, (128 * frame, 0))
     save(edge, "fx/storm-edge.png")
 
-    sea = Image.new("RGBA", (512, 512), rgba("#4b208b"))
+    sea = Image.new("RGBA", (512, 512), rgba("#3a2465"))
     draw = ImageDraw.Draw(sea)
     rng = random.Random(8_200)
-    for _ in range(180):
+    for _ in range(120):
         x = rng.randint(-80, 512)
         y = rng.randint(-40, 512)
-        w = rng.randint(48, 180)
-        h = rng.randint(10, 44)
-        color = rng.choice([rgba("#6328ad", 110), rgba("#3a176e", 125), rgba("#7336c4", 92), rgba("#2a1054", 115)])
-        draw.rounded_rectangle((x, y, x + w, y + h), radius=8, fill=color)
-    for _ in range(90):
+        w = rng.randint(70, 220)
+        h = rng.randint(14, 54)
+        color = rng.choice([rgba("#4f2c84", 72), rgba("#2f1d55", 92), rgba("#5b3792", 56), rgba("#241943", 80)])
+        draw.rounded_rectangle((x, y, x + w, y + h), radius=12, fill=color)
+    for _ in range(34):
         x = rng.randint(0, 511)
         y = rng.randint(0, 511)
-        length = rng.randint(24, 120)
-        draw.arc((x - length, y - 10, x + length, y + 38), 198, 330, fill=rgba("#b981ff", rng.randint(32, 82)), width=rng.randint(1, 3))
-    for _ in range(55):
+        length = rng.randint(30, 100)
+        draw.arc((x - length, y - 8, x + length, y + 30), 200, 332, fill=rgba("#a77bdf", rng.randint(18, 42)), width=1)
+    for _ in range(24):
         x = rng.randint(0, 511)
         y = rng.randint(0, 511)
-        draw.line((x, y, x + rng.randint(-16, 18), y + rng.randint(18, 54)), fill=rgba("#caa6ff", rng.randint(24, 62)), width=2)
+        draw.line((x, y, x + rng.randint(-10, 14), y + rng.randint(18, 44)), fill=rgba("#8a65c8", rng.randint(18, 38)), width=1)
     save(sea.convert("RGB"), "fx/storm-sea.png")
 
     overlay = Image.new("RGBA", (64, 64), rgba("#5728a8", 44))
@@ -432,6 +509,9 @@ def generate_ui() -> None:
     save(panel(92, 92, rgba("#202026", 240), rgba("#ffd45a", 255)), "ui/inventory-slot-active.png")
     save(panel(126, 44, rgba("#120c1c", 210), rgba("#7b6aa4", 120)), "ui/stat-pill.png")
     save(panel(64, 64, rgba("#161822", 230), rgba("#3a3d4a", 255)), "ui/action-button.png")
+
+    for kind in ["pistol", "shotgun", "rifle", "shield", "medkit"]:
+        save(make_hud_item_icon(kind), f"ui/items/{kind}.png")
 
     frame = Image.new("RGBA", (260, 260), (0, 0, 0, 0))
     draw = ImageDraw.Draw(frame)

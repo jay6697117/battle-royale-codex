@@ -55,6 +55,12 @@ body,
   display: grid;
   gap: 8px;
   width: min(290px, 25vw);
+  transition: opacity 140ms ease, filter 140ms ease;
+}
+
+.hud-left.is-occluding .fighter-row {
+  background: linear-gradient(90deg, rgba(31, 20, 57, 0.32), rgba(9, 12, 15, 0.16));
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.14);
 }
 
 .fighter-row {
@@ -200,6 +206,7 @@ body,
   right: clamp(86px, 14vw, 280px);
   display: flex;
   gap: 8px;
+  transition: opacity 140ms ease;
 }
 
 .stat-pill,
@@ -220,6 +227,12 @@ body,
   box-shadow: 0 4px 0 rgba(0, 0, 0, 0.28);
 }
 
+.hud-top-right.is-occluding .stat-pill,
+.storm-timer.is-occluding {
+  background: rgba(12, 9, 18, 0.42);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.16);
+}
+
 .stat-icon {
   color: white;
 }
@@ -232,17 +245,24 @@ body,
   position: absolute;
   top: clamp(64px, 8vh, 100px);
   right: clamp(14px, 2vw, 36px);
-  width: min(230px, 18vw);
+  width: min(260px, 20vw);
   aspect-ratio: 1;
   overflow: hidden;
   border: 0;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 30% 70%, #2f7fb0 0 13%, transparent 14%),
-    radial-gradient(circle at 66% 30%, #2f7fb0 0 12%, transparent 13%),
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.05) 0 3px, transparent 3px 16px),
-    #75a85a;
+    radial-gradient(circle at 30% 70%, rgba(47, 127, 176, 0.82) 0 13%, transparent 14%),
+    radial-gradient(circle at 66% 30%, rgba(47, 127, 176, 0.82) 0 12%, transparent 13%),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.035) 0 3px, transparent 3px 16px),
+    rgba(117, 168, 90, 0.68);
   box-shadow: 0 8px 0 rgba(0, 0, 0, 0.28);
+  opacity: 0.86;
+  transition: opacity 140ms ease, filter 140ms ease;
+}
+
+.mini-map.is-occluding {
+  opacity: 0.48;
+  filter: saturate(0.82);
 }
 
 .mini-map::after {
@@ -316,7 +336,7 @@ body,
   position: absolute;
   bottom: clamp(22px, 4vh, 48px);
   left: clamp(22px, 3vw, 56px);
-  display: flex;
+  display: none;
   gap: 16px;
 }
 
@@ -341,36 +361,43 @@ body,
   bottom: clamp(18px, 3.2vh, 42px);
   left: 50%;
   display: grid;
-  grid-template-columns: repeat(5, clamp(62px, 6.6vw, 90px));
+  grid-template-columns: repeat(5, clamp(64px, 6vw, 84px));
   gap: clamp(8px, 1vw, 16px);
   transform: translateX(-50%);
+  transition: opacity 140ms ease, filter 140ms ease;
 }
 
 .inventory-slot {
   position: relative;
   display: grid;
-  height: clamp(62px, 6.4vw, 88px);
+  height: clamp(64px, 6vw, 84px);
   place-items: center;
   border: 4px solid #22232b;
   border-radius: 8px;
   background:
     url("/assets/ui/inventory-slot.png") center / 100% 100% no-repeat,
-    rgba(28, 29, 32, 0.92);
+    rgba(22, 23, 27, 0.66);
   box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.14), 0 5px 0 rgba(0, 0, 0, 0.32);
 }
 
 .inventory-slot.active {
   border-color: var(--gold);
   background-image: url("/assets/ui/inventory-slot-active.png");
-  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.22), 0 0 20px rgba(255, 212, 90, 0.45);
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.2), 0 0 10px rgba(255, 212, 90, 0.28);
+}
+
+.inventory.is-occluding .inventory-slot {
+  border-color: rgba(210, 216, 226, 0.46);
+  background: rgba(16, 17, 21, 0.34);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.09), 0 2px 0 rgba(0, 0, 0, 0.14);
 }
 
 .slot-key {
   position: absolute;
-  top: 4px;
-  left: 6px;
-  color: #d9dde4;
-  font-size: 11px;
+  top: 5px;
+  left: 7px;
+  color: rgba(230, 235, 244, 0.72);
+  font-size: 10px;
   font-weight: 900;
 }
 
@@ -384,34 +411,40 @@ body,
 }
 
 .slot-icon {
-  width: 34px;
-  height: 22px;
+  display: block;
+  width: min(70px, 78%);
+  height: min(58px, 70%);
   border-radius: 3px;
   background: center / contain no-repeat;
+  filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.55));
+  image-rendering: pixelated;
 }
 
-.slot-icon.shield,
-.slot-icon.medkit {
-  width: 30px;
-  height: 34px;
+.item-shield .slot-icon,
+.item-medkit .slot-icon {
+  width: min(62px, 70%);
+  height: min(64px, 76%);
   border: 0;
 }
 
-.slot-icon.pistol,
-.slot-icon.rifle {
-  background-image: url("/assets/pickups/rifle.png");
+.weapon-pistol .slot-icon {
+  background-image: url("/assets/ui/items/pistol.png");
 }
 
-.slot-icon.shotgun {
-  background-image: url("/assets/pickups/shotgun.png");
+.weapon-rifle .slot-icon {
+  background-image: url("/assets/ui/items/rifle.png");
 }
 
-.slot-icon.shield {
-  background-image: url("/assets/pickups/shield.png");
+.weapon-shotgun .slot-icon {
+  background-image: url("/assets/ui/items/shotgun.png");
 }
 
-.slot-icon.medkit {
-  background-image: url("/assets/pickups/medkit.png");
+.item-shield .slot-icon {
+  background-image: url("/assets/ui/items/shield.png");
+}
+
+.item-medkit .slot-icon {
+  background-image: url("/assets/ui/items/medkit.png");
 }
 
 .player-vitals {
@@ -424,7 +457,13 @@ body,
   border: 2px solid rgba(0, 0, 0, 0.76);
   border-radius: 4px;
   background: #101414;
+  opacity: 0.72;
   transform: translateX(-50%);
+  transition: opacity 140ms ease;
+}
+
+.player-vitals.is-occluding {
+  opacity: 0.34;
 }
 
 .player-vitals div {

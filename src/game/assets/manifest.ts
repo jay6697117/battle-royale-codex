@@ -4,6 +4,8 @@ export const TextureKey = {
   WaterTiles: "tiles-water",
   RuinsTiles: "tiles-ruins",
   FoliageTiles: "tiles-foliage",
+  StormSea: "fx-storm-sea",
+  StormEdge: "fx-storm-edge",
   Rogue: "character-rogue-idle",
   Samurai: "character-samurai-idle",
   Ninja: "character-ninja-idle",
@@ -51,6 +53,7 @@ export interface SpritesheetAsset extends ImageAsset {
 
 export const IMAGE_ASSETS: ImageAsset[] = [
   { key: TextureKey.ArenaGround, path: "/assets/maps/arena-ground.png" },
+  { key: TextureKey.StormSea, path: "/assets/fx/storm-sea.png" },
   { key: TextureKey.Projectile, path: "/assets/fx/projectile-bullet.png", requiresAlpha: true },
   { key: TextureKey.Ammo, path: "/assets/pickups/ammo.png", requiresAlpha: true },
   { key: TextureKey.Medkit, path: "/assets/pickups/medkit.png", requiresAlpha: true },
@@ -196,6 +199,14 @@ export const SPRITESHEET_ASSETS: SpritesheetAsset[] = [
     path: "/assets/fx/storm-arc.png",
     frameWidth: 64,
     frameHeight: 64,
+    frames: 8,
+    requiresAlpha: true
+  },
+  {
+    key: TextureKey.StormEdge,
+    path: "/assets/fx/storm-edge.png",
+    frameWidth: 128,
+    frameHeight: 96,
     frames: 8,
     requiresAlpha: true
   }

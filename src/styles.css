@@ -39,8 +39,13 @@ body,
 
 #hud-root {
   position: absolute;
-  inset: 0;
+  top: 50%;
+  left: 50%;
+  width: min(100vw, calc(100vh * 16 / 9));
+  height: min(100vh, calc(100vw * 9 / 16));
+  aspect-ratio: 16 / 9;
   pointer-events: none;
+  transform: translate(-50%, -50%);
 }
 
 .hud-left {

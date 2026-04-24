@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import math
+import random
 from pathlib import Path
 from typing import Iterable
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -61,32 +62,35 @@ def make_tilesheet(frame_count: int, draw_frame, frame_size: int = 32) -> Image.
 
 def generate_grass_tiles() -> None:
     palette = [
-        rgba("#78a858"),
-        rgba("#84b660"),
-        rgba("#6f9e51"),
-        rgba("#8dbc68"),
-        rgba("#739f56"),
-        rgba("#98c270"),
+        rgba("#75a758"),
+        rgba("#82b660"),
+        rgba("#6d9a50"),
+        rgba("#91bd69"),
+        rgba("#668f4b"),
+        rgba("#9ac66f"),
+        rgba("#aec77d"),
+        rgba("#5f8648"),
     ]
 
     def draw_frame(draw: ImageDraw.ImageDraw, index: int) -> None:
+        rng = random.Random(4_100 + index)
         base = palette[index % len(palette)]
         draw.rectangle((0, 0, 31, 31), fill=base)
-        for y in range(0, 32, 8):
-            for x in range(0, 32, 8):
-                tint = palette[(index + x // 8 + y // 8) % len(palette)]
-                draw.rectangle((x, y, x + 7, y + 7), fill=(tint[0], tint[1], tint[2], 140))
-        if index % 4 == 1:
-            for point in [(6, 8), (22, 7), (15, 23)]:
-                draw_pixel_plus(draw, point[0], point[1], rgba("#d8d97a", 185))
-        if index % 4 == 2:
-            draw.line((2, 20, 30, 10), fill=rgba("#b8ca86", 120), width=2)
-            draw.line((0, 28, 25, 24), fill=rgba("#e4ead1", 110), width=1)
-        if index % 4 == 3:
-            draw.rectangle((3, 4, 29, 15), fill=rgba("#5e8d49", 120))
-            draw.rectangle((9, 16, 24, 29), fill=rgba("#9abc68", 130))
-        if index in {6, 7, 14, 15, 22, 23}:
-            draw.rectangle((0, 0, 31, 31), outline=rgba("#668d4f", 120))
+        for _ in range(9):
+            x = rng.randint(-7, 27)
+            y = rng.randint(-5, 28)
+            w = rng.randint(7, 18)
+            h = rng.randint(4, 13)
+            tint = palette[rng.randrange(len(palette))]
+            draw.rounded_rectangle((x, y, x + w, y + h), radius=2, fill=(tint[0], tint[1], tint[2], rng.randint(56, 120)))
+        for _ in range(10):
+            x = rng.randint(0, 31)
+            y = rng.randint(0, 31)
+            if rng.random() < 0.15:
+                draw_pixel_plus(draw, x, y, rgba("#e6d675", rng.randint(115, 180)))
+            else:
+                blade = rgba("#477f38", rng.randint(95, 150)) if rng.random() < 0.6 else rgba("#c2ce88", rng.randint(70, 120))
+                draw.line((x, y + rng.randint(2, 7), x + rng.randint(-1, 2), y), fill=blade, width=1)
 
     save(make_tilesheet(24, draw_frame), "tiles/grass-tiles.png")
 
@@ -343,9 +347,17 @@ def generate_fx() -> None:
             image = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
             draw = ImageDraw.Draw(image)
             if name == "storm-arc":
-                points = [(4, 30), (18, 18 + frame % 4), (31, 34), (44, 13), (60, 32)]
-                draw.line(points, fill=color, width=4)
-                draw.line([(x, y + 7) for x, y in points], fill=rgba("#9e5cff", 170), width=3)
+                rng = random.Random(6_200 + frame)
+                points = [
+                    (4, 31 + rng.randint(-4, 4)),
+                    (16, 18 + rng.randint(-5, 5)),
+                    (29, 36 + rng.randint(-4, 4)),
+                    (42, 13 + rng.randint(-5, 5)),
+                    (60, 32 + rng.randint(-4, 4)),
+                ]
+                draw.line([(x, y + 8) for x, y in points], fill=rgba("#7b38e8", 120), width=7)
+                draw.line(points, fill=rgba("#b77dff", 210), width=5)
+                draw.line(points, fill=color, width=2)
             elif name == "pickup-ring":
                 radius = 10 + frame * 4
                 draw.ellipse((32 - radius, 32 - radius, 32 + radius, 32 + radius), outline=color, width=3)
@@ -357,10 +369,52 @@ def generate_fx() -> None:
             sheet.alpha_composite(image, (64 * frame, 0))
         save(sheet, f"fx/{name}.png")
 
-    overlay = Image.new("RGBA", (64, 64), rgba("#5728a8", 82))
+    edge = Image.new("RGBA", (128 * 8, 96), (0, 0, 0, 0))
+    for frame in range(8):
+        image = Image.new("RGBA", (128, 96), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(image)
+        rng = random.Random(7_300 + frame)
+        y = 48 + rng.randint(-8, 8)
+        points = [(0, y)]
+        for x in range(14, 129, 14):
+            y += rng.randint(-18, 18)
+            y = max(14, min(82, y))
+            points.append((x, y))
+        draw.line([(x, y + 8) for x, y in points], fill=rgba("#4c159d", 95), width=14)
+        draw.line([(x, y + 4) for x, y in points], fill=rgba("#8d43ff", 170), width=9)
+        draw.line(points, fill=rgba("#f8efff", 245), width=4)
+        draw.line(points, fill=rgba("#ffffff", 255), width=2)
+        for x, y in points[1:-1:2]:
+            branch = [(x, y), (x + rng.randint(-8, 10), y + rng.choice([-1, 1]) * rng.randint(10, 25))]
+            draw.line(branch, fill=rgba("#d9b9ff", 190), width=2)
+        edge.alpha_composite(image, (128 * frame, 0))
+    save(edge, "fx/storm-edge.png")
+
+    sea = Image.new("RGBA", (512, 512), rgba("#4b208b"))
+    draw = ImageDraw.Draw(sea)
+    rng = random.Random(8_200)
+    for _ in range(180):
+        x = rng.randint(-80, 512)
+        y = rng.randint(-40, 512)
+        w = rng.randint(48, 180)
+        h = rng.randint(10, 44)
+        color = rng.choice([rgba("#6328ad", 110), rgba("#3a176e", 125), rgba("#7336c4", 92), rgba("#2a1054", 115)])
+        draw.rounded_rectangle((x, y, x + w, y + h), radius=8, fill=color)
+    for _ in range(90):
+        x = rng.randint(0, 511)
+        y = rng.randint(0, 511)
+        length = rng.randint(24, 120)
+        draw.arc((x - length, y - 10, x + length, y + 38), 198, 330, fill=rgba("#b981ff", rng.randint(32, 82)), width=rng.randint(1, 3))
+    for _ in range(55):
+        x = rng.randint(0, 511)
+        y = rng.randint(0, 511)
+        draw.line((x, y, x + rng.randint(-16, 18), y + rng.randint(18, 54)), fill=rgba("#caa6ff", rng.randint(24, 62)), width=2)
+    save(sea.convert("RGB"), "fx/storm-sea.png")
+
+    overlay = Image.new("RGBA", (64, 64), rgba("#5728a8", 44))
     draw = ImageDraw.Draw(overlay)
-    for offset in range(-64, 64, 16):
-        draw.line((offset, 64, offset + 64, 0), fill=rgba("#b57dff", 45), width=5)
+    for offset in range(-64, 96, 24):
+        draw.arc((offset - 26, 6, offset + 42, 54), 190, 330, fill=rgba("#b57dff", 34), width=3)
     save(overlay, "fx/storm-overlay.png")
 
 
@@ -411,58 +465,116 @@ def generate_ui() -> None:
 def generate_arena_ground() -> None:
     width = 1920
     height = 1080
-    grass = Image.open(ASSET_ROOT / "tiles/grass-tiles.png").convert("RGBA")
-    water = Image.open(ASSET_ROOT / "tiles/water-tiles.png").convert("RGBA")
+    rng = random.Random(9_100)
     ground = Image.new("RGBA", (width, height), rgba("#78a858"))
 
-    for y in range(0, height, 32):
-      for x in range(0, width, 32):
-        distance = int(math.hypot(x - width / 2, y - height / 2))
-        path_bias = abs(x - y * 0.62 - 250) < 45 or abs(x + y * 0.35 - 1700) < 36
-        frame = int(2 + ((x / 32 + y / 32) % 2)) if path_bias else abs((x // 32) * 17 + (y // 32) * 31 + distance) % 24
-        tile = grass.crop((frame * 32, 0, frame * 32 + 32, 32))
-        ground.alpha_composite(tile, (x, y))
+    patch_palette = [
+        rgba("#6f9f52", 76),
+        rgba("#89b962", 78),
+        rgba("#5f8c4a", 68),
+        rgba("#9fbd68", 56),
+        rgba("#6b8f4f", 54),
+        rgba("#b4c477", 48),
+    ]
+    patch_layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    patch_draw = ImageDraw.Draw(patch_layer)
+    for _ in range(130):
+        x = rng.randint(-180, width - 40)
+        y = rng.randint(-150, height - 30)
+        w = rng.randint(120, 430)
+        h = rng.randint(70, 250)
+        color = rng.choice(patch_palette)
+        patch_draw.ellipse((x, y, x + w, y + h), fill=color)
+    ground.alpha_composite(patch_layer)
 
     draw = ImageDraw.Draw(ground)
-    for points in [
-        [(250, 145), (500, 205), (670, 390), (800, 570), (840, 815)],
-        [(1450, 110), (1610, 245), (1680, 500), (1560, 730)],
-        [(430, 680), (650, 710), (820, 760), (910, 890)],
-    ]:
-        draw.line(points, fill=rgba("#e5edd3", 105), width=5)
-        draw.line(points, fill=rgba("#7aa15c", 80), width=2)
 
-    water_zones = [
-        (295, 660, 260, 235),
-        (1110, 145, 230, 165),
-    ]
-    for zone_x, zone_y, zone_w, zone_h in water_zones:
-        start_x = (zone_x // 32) * 32
-        start_y = (zone_y // 32) * 32
-        end_x = math.ceil((zone_x + zone_w) / 32) * 32
-        end_y = math.ceil((zone_y + zone_h) / 32) * 32
-        for y in range(start_y, end_y, 32):
-            for x in range(start_x, end_x, 32):
-                edge = 6 if x <= start_x or y <= start_y or x >= end_x - 32 or y >= end_y - 32 else 4 if (x + y) % 7 == 0 else 0
-                tile = water.crop((edge * 32, 0, edge * 32 + 32, 32))
-                ground.alpha_composite(tile, (x, y))
-        draw.rounded_rectangle((zone_x, zone_y, zone_x + zone_w, zone_y + zone_h), radius=16, outline=rgba("#2d6d94", 180), width=5)
+    def draw_path(points: list[tuple[int, int]], width_px: int) -> None:
+        draw.line(points, fill=rgba("#d6dfb6", 34), width=width_px)
+        draw.line(points, fill=rgba("#8da65c", 36), width=max(2, width_px // 3))
+        for start, end in zip(points, points[1:]):
+            dx = end[0] - start[0]
+            dy = end[1] - start[1]
+            length = max(1.0, math.hypot(dx, dy))
+            step = 42
+            dash = 21
+            progress = 0.0
+            while progress < length:
+                dash_end = min(length, progress + dash)
+                x1 = start[0] + dx * progress / length
+                y1 = start[1] + dy * progress / length
+                x2 = start[0] + dx * dash_end / length
+                y2 = start[1] + dy * dash_end / length
+                draw.line((x1, y1, x2, y2), fill=rgba("#eef4dc", 135), width=3)
+                progress += step
 
-    for i in range(160):
-        x = (i * 149 + 37) % width
-        y = (i * 83 + 91) % height
-        if any(zone_x <= x <= zone_x + zone_w and zone_y <= y <= zone_y + zone_h for zone_x, zone_y, zone_w, zone_h in water_zones):
+    draw_path([(235, 145), (450, 190), (620, 320), (725, 520), (820, 820)], 10)
+    draw_path([(1375, 95), (1558, 245), (1645, 480), (1548, 730)], 9)
+    draw_path([(390, 690), (610, 700), (790, 760), (925, 900)], 8)
+
+    water_mask = Image.new("L", (width, height), 0)
+    water_draw = ImageDraw.Draw(water_mask)
+    water_draw.rounded_rectangle((275, 640, 585, 835), radius=34, fill=255)
+    water_draw.rounded_rectangle((270, 775, 515, 965), radius=34, fill=255)
+    water_draw.rounded_rectangle((438, 696, 610, 830), radius=26, fill=0)
+    water_draw.rounded_rectangle((1105, 125, 1358, 320), radius=32, fill=255)
+    water_draw.rounded_rectangle((1165, 92, 1255, 188), radius=28, fill=255)
+    water_draw.rounded_rectangle((1280, 245, 1380, 326), radius=22, fill=0)
+
+    def apply_mask_color(mask: Image.Image, color: Color) -> None:
+        nonlocal ground
+        fill = Image.new("RGBA", ground.size, color)
+        ground = Image.composite(fill, ground, mask)
+
+    shore_mask = water_mask.filter(ImageFilter.MaxFilter(19))
+    apply_mask_color(shore_mask, rgba("#557044"))
+    apply_mask_color(water_mask, rgba("#23678e"))
+    draw = ImageDraw.Draw(ground)
+
+    for _ in range(96):
+        x = rng.randint(260, 1380)
+        y = rng.randint(90, 965)
+        if water_mask.getpixel((x, y)) == 0:
             continue
-        if i % 5 == 0:
-            draw.ellipse((x, y, x + 8, y + 5), fill=rgba("#c9c2a5", 150))
-        elif i % 7 == 0:
-            draw_pixel_plus(draw, x, y, rgba("#e78c77", 160))
-        else:
-            draw.line((x, y + 7, x + 2, y), fill=rgba("#4f8c3f", 135), width=2)
+        length = rng.randint(18, 62)
+        draw.arc((x - length, y - 7, x + length, y + 20), 200, 340, fill=rgba("#8bd7e8", rng.randint(70, 135)), width=2)
+    for _ in range(14):
+        x = rng.randint(300, 1320)
+        y = rng.randint(145, 915)
+        if water_mask.getpixel((x, y)) == 0:
+            continue
+        draw.ellipse((x - 8, y - 5, x + 9, y + 6), fill=rgba("#84c55e", 185))
+        draw.line((x - 1, y - 4, x + 8, y), fill=rgba("#4d8c3e", 160), width=1)
 
-    opaque_ground = Image.new("RGBA", ground.size, rgba("#78a858"))
-    opaque_ground.alpha_composite(ground)
-    save(opaque_ground, "maps/arena-ground.png")
+    for _ in range(260):
+        x = rng.randint(20, width - 30)
+        y = rng.randint(20, height - 30)
+        if water_mask.getpixel((x, y)) > 0:
+            continue
+        if rng.random() < 0.22:
+            draw.ellipse((x, y, x + rng.randint(5, 12), y + rng.randint(3, 8)), fill=rgba("#c9c2a5", rng.randint(120, 175)))
+        elif rng.random() < 0.15:
+            draw_pixel_plus(draw, x, y, rng.choice([rgba("#efcf6c", 165), rgba("#e48977", 160), rgba("#f2e5d2", 150)]))
+        else:
+            blade_color = rng.choice([rgba("#457d38", 130), rgba("#5f963f", 120), rgba("#bdd084", 92)])
+            draw.line((x, y + rng.randint(4, 10), x + rng.randint(-2, 3), y), fill=blade_color, width=2)
+
+    for points in [
+        [(820, 330), (850, 355), (790, 390), (855, 425), (805, 450)],
+        [(880, 500), (930, 505), (910, 545), (965, 568)],
+        [(1005, 210), (1050, 225), (1030, 260)],
+    ]:
+        draw.line(points, fill=rgba("#c9c2a5", 118), width=8)
+        draw.line(points, fill=rgba("#6f8f57", 80), width=3)
+
+    for _ in range(90):
+        x = rng.randint(40, width - 40)
+        y = rng.randint(40, height - 40)
+        if water_mask.getpixel((x, y)) > 0:
+            continue
+        draw.rectangle((x, y, x + rng.randint(2, 5), y + rng.randint(1, 4)), fill=rgba("#2f6f35", rng.randint(60, 115)))
+
+    save(ground.convert("RGB"), "maps/arena-ground.png")
 
 
 def main() -> None:

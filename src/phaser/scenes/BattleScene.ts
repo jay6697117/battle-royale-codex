@@ -67,8 +67,10 @@ export class BattleScene extends Phaser.Scene {
   private keys!: ControlKeys;
   private entityViews = new Map<string, EntityView>();
   private stormLayer!: Phaser.GameObjects.Graphics;
-  private stormOverlay!: Phaser.GameObjects.TileSprite;
-  private stormArcs: Phaser.GameObjects.Sprite[] = [];
+  private stormSea!: Phaser.GameObjects.TileSprite;
+  private stormSeaMaskShape!: Phaser.GameObjects.Graphics;
+  private stormSeaMask!: Phaser.Display.Masks.GeometryMask;
+  private stormEdgeSprites: Phaser.GameObjects.Sprite[] = [];
   private selectedSlot = 1;
   private useItemQueued = false;
   private lastEventId = 0;
@@ -217,7 +219,7 @@ export class BattleScene extends Phaser.Scene {
     for (const id of ["ammo", "medkit", "shield", "rifle", "shotgun", "coin"] as const) {
       this.createLoopingAnimation(pickupGlowKey(id), 6);
     }
-    for (const key of ["fx-muzzle-flash", TextureKey.Spark, "fx-pickup-ring", "fx-storm-arc"]) {
+    for (const key of ["fx-muzzle-flash", TextureKey.Spark, "fx-pickup-ring", TextureKey.StormEdge]) {
       this.createLoopingAnimation(key, 12);
     }
   }
@@ -297,48 +299,93 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private createStormLayer() {
-    this.stormOverlay = this.add.tileSprite(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, WORLD_WIDTH, WORLD_HEIGHT, "fx-storm-overlay");
-    this.stormOverlay.setDepth(90);
-    this.stormOverlay.setAlpha(0.35);
+    this.stormSea = this.add.tileSprite(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, WORLD_WIDTH, WORLD_HEIGHT, TextureKey.StormSea);
+    this.stormSea.setDepth(88);
+    this.stormSea.setAlpha(0.9);
+    this.stormSeaMaskShape = this.make.graphics({ x: 0, y: 0 }, false);
+    this.stormSeaMask = this.stormSeaMaskShape.createGeometryMask();
+    this.stormSeaMask.setInvertAlpha(true);
+    this.stormSea.setMask(this.stormSeaMask);
+
     this.stormLayer = this.add.graphics();
     this.stormLayer.setDepth(91);
-    for (let index = 0; index < 14; index += 1) {
-      const arc = this.add.sprite(0, 0, "fx-storm-arc");
-      arc.play("fx-storm-arc");
-      arc.setDepth(92);
-      arc.setAlpha(0.86);
-      this.stormArcs.push(arc);
+    for (let index = 0; index < 18; index += 1) {
+      const edge = this.add.sprite(0, 0, TextureKey.StormEdge);
+      edge.play(TextureKey.StormEdge);
+      edge.setDepth(93);
+      edge.setAlpha(0.92);
+      this.stormEdgeSprites.push(edge);
     }
   }
 
   private renderStorm() {
     this.stormLayer.clear();
-    this.stormOverlay.tilePositionX += 0.25;
-    this.stormOverlay.tilePositionY -= 0.18;
-    this.stormOverlay.setAlpha(0.05 + Math.abs(Math.sin(this.time.now / 420)) * 0.04);
+    this.stormSea.tilePositionX += 0.1;
+    this.stormSea.tilePositionY -= 0.06;
+    this.stormSea.setAlpha(0.52 + Math.abs(Math.sin(this.time.now / 1_000)) * 0.08);
 
-    const pulse = 0.12 + Math.abs(Math.sin(this.time.now / 210)) * 0.08;
-    this.stormLayer.lineStyle(900, 0x5728a8, 0.28);
-    this.stormLayer.strokeCircle(this.state.storm.centerX, this.state.storm.centerY, this.state.storm.radius + 450);
-    this.stormLayer.lineStyle(8, 0xf4ecff, 0.95);
-    this.stormLayer.strokeCircle(this.state.storm.centerX, this.state.storm.centerY, this.state.storm.radius);
-    this.stormLayer.lineStyle(16, 0xa75cff, pulse);
-    this.stormLayer.strokeCircle(this.state.storm.centerX, this.state.storm.centerY, this.state.storm.radius + 5);
+    this.stormSeaMaskShape.clear();
+    this.stormSeaMaskShape.fillStyle(0xffffff, 1);
+    this.stormSeaMaskShape.fillCircle(this.state.storm.centerX, this.state.storm.centerY, this.state.storm.radius);
 
-    for (let index = 0; index < this.stormArcs.length; index += 1) {
-      const arc = this.stormArcs[index];
-      if (!arc) {
+    const pulse = 0.35 + Math.abs(Math.sin(this.time.now / 190)) * 0.4;
+    const points = this.buildStormEdgePoints(72, 0);
+    this.drawStormPolyline(points, 30, 0x5b20b2, 0.22 + pulse * 0.1);
+    this.drawStormPolyline(points, 16, 0x9b55ff, 0.28 + pulse * 0.18);
+    this.drawStormPolyline(points, 7, 0xf4ecff, 0.78 + pulse * 0.18);
+    this.drawStormPolyline(this.buildStormEdgePoints(72, 37), 3, 0xffffff, 0.9);
+    this.stormLayer.lineStyle(2, 0xffffff, 0.32);
+    this.stormLayer.strokeCircle(this.state.storm.centerX, this.state.storm.centerY, this.state.storm.radius - 5);
+
+    for (let index = 0; index < this.stormEdgeSprites.length; index += 1) {
+      const edge = this.stormEdgeSprites[index];
+      if (!edge) {
         continue;
       }
-      const angle = index * 0.45 + this.time.now / 640;
-      const radius = this.state.storm.radius + 10 + (index % 3) * 7;
-      arc.setPosition(
+      const angle = index * ((Math.PI * 2) / this.stormEdgeSprites.length) + Math.sin(this.time.now / 920 + index) * 0.035;
+      const radius = this.state.storm.radius + 6 + Math.sin(this.time.now / 250 + index * 1.7) * 6;
+      edge.setPosition(
         this.state.storm.centerX + Math.cos(angle) * radius,
         this.state.storm.centerY + Math.sin(angle) * radius
       );
-      arc.setRotation(angle + Math.PI / 2);
-      arc.setScale(0.95 + (index % 3) * 0.16);
+      edge.setRotation(angle + Math.PI / 2);
+      edge.setScale(0.78 + (index % 4) * 0.08);
+      edge.setAlpha(0.48 + Math.abs(Math.sin(this.time.now / 180 + index)) * 0.46);
     }
+  }
+
+  private buildStormEdgePoints(count: number, seedOffset: number) {
+    const points: { x: number; y: number }[] = [];
+    const step = Math.floor(this.time.now / 150);
+    for (let index = 0; index <= count; index += 1) {
+      const angle = (index / count) * Math.PI * 2;
+      const jitter =
+        Math.sin(index * 12.9898 + step * 0.87 + seedOffset) * 11 +
+        Math.sin(index * 4.31 + step * 1.41 + seedOffset) * 6;
+      const radius = this.state.storm.radius + jitter;
+      points.push({
+        x: this.state.storm.centerX + Math.cos(angle) * radius,
+        y: this.state.storm.centerY + Math.sin(angle) * radius
+      });
+    }
+    return points;
+  }
+
+  private drawStormPolyline(points: { x: number; y: number }[], width: number, color: number, alpha: number) {
+    if (points.length < 2) {
+      return;
+    }
+    this.stormLayer.lineStyle(width, color, alpha);
+    this.stormLayer.beginPath();
+    this.stormLayer.moveTo(points[0]?.x ?? 0, points[0]?.y ?? 0);
+    for (let index = 1; index < points.length; index += 1) {
+      const point = points[index];
+      if (point) {
+        this.stormLayer.lineTo(point.x, point.y);
+      }
+    }
+    this.stormLayer.closePath();
+    this.stormLayer.strokePath();
   }
 
   private renderEntities() {

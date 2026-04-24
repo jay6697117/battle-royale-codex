@@ -111,13 +111,19 @@ describe("battle royale simulation", () => {
     player.shield = 0;
 
     const bots = Object.values(state.entities).filter((entity) => entity.kind === "bot");
-    for (const bot of bots) {
-      bot.x = 960;
-      bot.y = 530;
+    for (const [index, bot] of bots.entries()) {
+      bot.x = index === 0 ? 990 : 1_360 + index * 60;
+      bot.y = index === 0 ? 530 : 760;
       bot.health = 100;
+      bot.fireCooldownMs = index === 0 ? 0 : 10_000;
+      bot.aiThinkMs = 10_000;
+      bot.aiTargetId = index === 0 ? player.id : undefined;
+      bot.aiMoveAngle = Math.PI;
     }
+    state.matchTimeMs = 31_000;
+    state.storm.elapsedMs = 31_000;
 
-    stepSimulation(state, emptyInput, 31_000);
+    stepSimulation(state, emptyInput, 1_200);
 
     expect(player.health ?? 0).toBeLessThan(28);
 

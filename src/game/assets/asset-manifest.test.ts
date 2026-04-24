@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { IMAGE_ASSETS, SPRITESHEET_ASSETS, UI_ASSETS } from "./manifest";
+import { IMAGE_ASSETS, SPRITESHEET_ASSETS, TextureKey, UI_ASSETS } from "./manifest";
 
 interface PngInfo {
   width: number;
@@ -49,5 +49,15 @@ describe("asset manifest", () => {
       const info = readPngInfo(asset.path);
       expect(hasAlpha(info), asset.key).toBe(true);
     }
+  });
+
+  it("keeps the arena ground opaque so the map cannot show grid seams", () => {
+    const ground = IMAGE_ASSETS.find((asset) => asset.key === TextureKey.ArenaGround);
+
+    expect(ground).toBeDefined();
+    if (!ground) {
+      throw new Error("Arena ground asset is missing");
+    }
+    expect(readPngInfo(ground.path).colorType, TextureKey.ArenaGround).toBe(2);
   });
 });

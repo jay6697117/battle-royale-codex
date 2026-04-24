@@ -16,7 +16,7 @@ export interface WeaponDefinition {
 export const WEAPONS: Record<WeaponId, WeaponDefinition> = {
   pistol: {
     id: "pistol",
-    label: "Pistol",
+    label: "手枪",
     slot: 1,
     damage: 18,
     projectileSpeed: 700,
@@ -28,7 +28,7 @@ export const WEAPONS: Record<WeaponId, WeaponDefinition> = {
   },
   shotgun: {
     id: "shotgun",
-    label: "Shotgun",
+    label: "霰弹枪",
     slot: 2,
     damage: 14,
     projectileSpeed: 620,
@@ -40,7 +40,7 @@ export const WEAPONS: Record<WeaponId, WeaponDefinition> = {
   },
   rifle: {
     id: "rifle",
-    label: "Rifle",
+    label: "步枪",
     slot: 3,
     damage: 24,
     projectileSpeed: 820,

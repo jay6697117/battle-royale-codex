@@ -7,32 +7,32 @@ export class HudController {
   private lastHtml = "";
   private lastSnapshot = "";
 
-  constructor(root: HTMLElement | null) {
+  constructor(root: HTMLElement | null, private readonly onStart?: () => void) {
     if (!root) {
       throw new Error("HUD root is missing");
     }
     this.root = root;
     this.root.addEventListener("pointerdown", (event) => this.handleSlotPointerDown(event));
-    this.root.addEventListener("click", (event) => this.handleSlotClick(event));
+    this.root.addEventListener("click", (event) => this.handleRootClick(event));
     document.addEventListener("pointerdown", (event) => this.handleOutsidePointerDown(event));
     document.addEventListener("pointermove", (event) => this.handlePointerMove(event));
   }
 
-  update(state: GameState, entities: EntityState[] = Object.values(state.entities)) {
-    const snapshot = this.createSnapshot(state, entities);
+  update(state: GameState, entities: EntityState[] = Object.values(state.entities), showStartNotice = false) {
+    const snapshot = this.createSnapshot(state, entities, showStartNotice);
     if (snapshot === this.lastSnapshot) {
       return;
     }
     this.lastSnapshot = snapshot;
 
-    const html = this.render(state, entities);
+    const html = this.render(state, entities, showStartNotice);
     if (html !== this.lastHtml) {
       this.root.innerHTML = html;
       this.lastHtml = html;
     }
   }
 
-  private render(state: GameState, entities: EntityState[]) {
+  private render(state: GameState, entities: EntityState[], showStartNotice: boolean) {
     const fighters = entities.filter(
       (entity) => entity.kind === "player" || entity.kind === "bot"
     );
@@ -42,8 +42,11 @@ export class HudController {
       0,
       Math.ceil((state.storm.shrinkStartMs + state.storm.shrinkDurationMs - state.storm.elapsedMs) / 1_000)
     );
+    const xpPercent = this.percent(state.progression.xp, state.progression.xpToNextLevel);
+    const damageBonus = Math.round((state.progression.damageMultiplier - 1) * 100);
 
     return `
+      ${showStartNotice ? this.renderStartNotice() : ""}
       <div class="hud-left ${hudOcclusion.left ? "is-occluding" : ""}">
         ${fighters.map((fighter) => this.renderFighterRow(fighter)).join("")}
       </div>
@@ -60,6 +63,10 @@ export class HudController {
           .join("")}
       </div>
       <div class="storm-timer ${hudOcclusion.miniMap ? "is-occluding" : ""}"><span></span>${this.formatTime(stormSeconds)}</div>
+      <div class="progression-panel ${hudOcclusion.playerVitals ? "is-occluding" : ""}">
+        <div class="progression-main"><strong>等级 ${state.progression.level}</strong><div class="xp-bar"><i style="width:${xpPercent}%"></i></div><span>${state.progression.xp}/${state.progression.xpToNextLevel}</span></div>
+        <div class="progression-bonuses"><span>金币 ${state.inventory.coins}</span><span>伤害 +${damageBonus}%</span></div>
+      </div>
       <div class="hud-actions">
         <button type="button">◈</button>
         <button type="button">☺</button>
@@ -113,7 +120,7 @@ export class HudController {
             <i class="health" style="width:${health}%"></i>
             <i class="shield" style="width:${shield}%"></i>
           </div>
-          <div class="fighter-value">${Math.ceil(fighter.health ?? 0)}/100</div>
+          <div class="fighter-value">${Math.ceil(fighter.health ?? 0)}/${Math.ceil(fighter.maxHealth ?? 100)}</div>
         </div>
       </div>
     `;
@@ -147,7 +154,14 @@ export class HudController {
     }
   }
 
-  private handleSlotClick(event: MouseEvent) {
+  private handleRootClick(event: MouseEvent) {
+    const startNotice = (event.target as HTMLElement).closest(".start-notice");
+    if (startNotice) {
+      event.stopPropagation();
+      this.onStart?.();
+      return;
+    }
+
     const slot = (event.target as HTMLElement).closest<HTMLButtonElement>(".inventory-slot");
     if (!slot) {
       return;
@@ -193,11 +207,44 @@ export class HudController {
     return `left:${left * 100}%;top:${top * 100}%;width:${diameter * 100}%;height:${diameter * (WORLD_WIDTH / WORLD_HEIGHT) * 100}%`;
   }
 
+  private renderStartNotice() {
+    return `
+      <div class="start-notice" role="dialog" aria-label="游戏开始前说明">
+        <div class="start-notice-header">
+          <span>战术公告</span>
+          <strong>大逃杀开始前说明</strong>
+          <em>先看清键位和道具，准备好再开战。</em>
+        </div>
+        <div class="start-notice-grid">
+          <section>
+            <h2>键盘操作</h2>
+            <p><b>WASD / 方向键</b><span>移动角色</span></p>
+            <p><b>鼠标</b><span>瞄准方向</span></p>
+            <p><b>左键</b><span>使用当前武器射击</span></p>
+            <p><b>E</b><span>在手枪、霰弹枪、步枪之间切换</span></p>
+            <p><b>1 - 5</b><span>直接选择武器或道具槽</span></p>
+            <p><b>空格 / 右键</b><span>使用护盾药水或医疗包</span></p>
+          </section>
+          <section>
+            <h2>道具说明</h2>
+            <p><b>手枪</b><span>稳定基础武器，中近距离好用</span></p>
+            <p><b>霰弹枪</b><span>近距离爆发高，越贴近越强</span></p>
+            <p><b>步枪</b><span>射程远、单发伤害高</span></p>
+            <p><b>护盾药水</b><span>恢复护盾，先挡伤害</span></p>
+            <p><b>医疗包</b><span>恢复生命值，保命用</span></p>
+            <p><b>金币 / 经验</b><span>击败怪物和拾取奖励，提升战斗能力</span></p>
+          </section>
+        </div>
+        <button class="start-notice-button" type="button">开始游戏 Enter</button>
+      </div>
+    `;
+  }
+
   private renderEndState(phase: "won" | "lost") {
     return `
       <div class="end-state ${phase}">
-        <strong>${phase === "won" ? "VICTORY" : "ELIMINATED"}</strong>
-        <span>Press R to restart</span>
+        <strong>${phase === "won" ? "胜利" : "已被淘汰"}</strong>
+        <span>按 R 重新开始</span>
       </div>
     `;
   }
@@ -215,7 +262,7 @@ export class HudController {
     return Math.max(0, Math.min(100, (value / max) * 100));
   }
 
-  private createSnapshot(state: GameState, entities: EntityState[]) {
+  private createSnapshot(state: GameState, entities: EntityState[], showStartNotice: boolean) {
     const stormSeconds = Math.max(
       0,
       Math.ceil((state.storm.shrinkStartMs + state.storm.shrinkDurationMs - state.storm.elapsedMs) / 1_000)
@@ -231,6 +278,7 @@ export class HudController {
       .join("|");
 
     return [
+      showStartNotice ? 1 : 0,
       state.phase,
       stormSeconds,
       Math.round(state.storm.radius),
@@ -240,6 +288,12 @@ export class HudController {
       state.inventory.rifleAmmo,
       state.inventory.shieldPotions,
       state.inventory.medkits,
+      state.inventory.coins,
+      state.progression.level,
+      state.progression.xp,
+      state.progression.xpToNextLevel,
+      state.progression.damageMultiplier.toFixed(2),
+      state.progression.speedMultiplier.toFixed(2),
       state.scoreboard.aliveFighters,
       state.scoreboard.kills,
       state.scoreboard.pveKills,

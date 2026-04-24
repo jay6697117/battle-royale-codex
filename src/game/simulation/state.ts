@@ -11,7 +11,7 @@ import type { InputFrame } from "../input/actions";
 export type EntityKind = "player" | "bot" | "pve" | "projectile" | "pickup";
 export type MatchPhase = "playing" | "won" | "lost";
 export type FighterRole = "rogue" | "samurai" | "ninja" | "cowboy" | "mage";
-export type PveType = "bat" | "slime";
+export type PveType = "bat" | "slime" | "wolf" | "spitter" | "golem";
 export type PickupType = "ammo" | "medkit" | "shield" | "rifle" | "shotgun" | "coin";
 
 export interface EntityState {
@@ -75,9 +75,17 @@ export interface ScoreboardState {
   shotsFired: number;
 }
 
+export interface ProgressionState {
+  level: number;
+  xp: number;
+  xpToNextLevel: number;
+  damageMultiplier: number;
+  speedMultiplier: number;
+}
+
 export interface GameEvent {
   id: number;
-  type: "pickup" | "hit" | "elimination" | "shoot" | "heal" | "shield";
+  type: "pickup" | "hit" | "elimination" | "shoot" | "heal" | "shield" | "xp" | "levelup" | "loot";
   x: number;
   y: number;
   entityId?: string;
@@ -92,6 +100,7 @@ export interface GameState {
   storm: StormState;
   inventory: InventoryState;
   scoreboard: ScoreboardState;
+  progression: ProgressionState;
   events: GameEvent[];
   nextEventId: number;
   nextEntityId: number;
@@ -102,7 +111,130 @@ const STEP_MS = 50;
 const FIGHTER_RADIUS = 17;
 const PROJECTILE_RADIUS = 5;
 const PICKUP_RADIUS = 16;
+const XP_THRESHOLDS = [0, 40, 95, 165, 250, 350, 470, 610, 770, 950];
+const PVE_SPAWN_CLEARANCE = 40;
+const PICKUP_SPAWN_CLEARANCE = 8;
+
 type EntityList = EntityState[];
+
+interface PveSpawn {
+  id: string;
+  pveType: PveType;
+  x: number;
+  y: number;
+}
+
+interface PickupSpawn {
+  id: string;
+  pickupType: PickupType;
+  x: number;
+  y: number;
+}
+
+interface SpawnCollisionEntity {
+  kind: string;
+  pveType?: PveType;
+}
+
+interface PveDefinition {
+  radius: number;
+  health: number;
+  speed: number;
+  touchDamage: number;
+  touchCooldownMs: number;
+  thinkMs: number;
+  xp: number;
+}
+
+const PVE_DEFINITIONS: Record<PveType, PveDefinition> = {
+  bat: {
+    radius: 18,
+    health: 48,
+    speed: 150,
+    touchDamage: 3,
+    touchCooldownMs: 1_050,
+    thinkMs: 260,
+    xp: 18
+  },
+  slime: {
+    radius: 20,
+    health: 70,
+    speed: 95,
+    touchDamage: 5,
+    touchCooldownMs: 1_250,
+    thinkMs: 520,
+    xp: 25
+  },
+  wolf: {
+    radius: 18,
+    health: 62,
+    speed: 180,
+    touchDamage: 4,
+    touchCooldownMs: 920,
+    thinkMs: 210,
+    xp: 32
+  },
+  spitter: {
+    radius: 21,
+    health: 85,
+    speed: 105,
+    touchDamage: 7,
+    touchCooldownMs: 1_350,
+    thinkMs: 460,
+    xp: 40
+  },
+  golem: {
+    radius: 25,
+    health: 150,
+    speed: 65,
+    touchDamage: 11,
+    touchCooldownMs: 1_600,
+    thinkMs: 650,
+    xp: 55
+  }
+};
+
+const INITIAL_PVE_SPAWNS: PveSpawn[] = [
+  { id: "pve_bat_west", pveType: "bat", x: 180, y: 725 },
+  { id: "pve_bat_east", pveType: "bat", x: 1505, y: 615 },
+  { id: "pve_bat_north", pveType: "bat", x: 1350, y: 160 },
+  { id: "pve_slime_center", pveType: "slime", x: 1280, y: 655 },
+  { id: "pve_slime_southwest", pveType: "slime", x: 700, y: 805 },
+  { id: "pve_wolf_northwest", pveType: "wolf", x: 610, y: 245 },
+  { id: "pve_wolf_southeast", pveType: "wolf", x: 1610, y: 720 },
+  { id: "pve_spitter_east", pveType: "spitter", x: 1510, y: 430 },
+  { id: "pve_spitter_south", pveType: "spitter", x: 1030, y: 860 },
+  { id: "pve_golem_south", pveType: "golem", x: 1320, y: 845 },
+  { id: "pve_bat_west_patrol", pveType: "bat", x: 345, y: 690 },
+  { id: "pve_bat_northeast", pveType: "bat", x: 1640, y: 300 },
+  { id: "pve_bat_south", pveType: "bat", x: 820, y: 940 },
+  { id: "pve_slime_north", pveType: "slime", x: 1020, y: 285 },
+  { id: "pve_slime_east", pveType: "slime", x: 1660, y: 560 },
+  { id: "pve_wolf_west", pveType: "wolf", x: 505, y: 625 },
+  { id: "pve_wolf_center", pveType: "wolf", x: 650, y: 660 },
+  { id: "pve_spitter_north", pveType: "spitter", x: 1235, y: 300 },
+  { id: "pve_spitter_west", pveType: "spitter", x: 520, y: 300 },
+  { id: "pve_golem_east", pveType: "golem", x: 1585, y: 915 }
+];
+
+const INITIAL_PICKUP_SPAWNS: PickupSpawn[] = [
+  { id: "pickup_rifle", pickupType: "rifle", x: 560, y: 375 },
+  { id: "pickup_shield_1", pickupType: "shield", x: 900, y: 250 },
+  { id: "pickup_coin", pickupType: "coin", x: 760, y: 780 },
+  { id: "pickup_medkit", pickupType: "medkit", x: 1135, y: 870 },
+  { id: "pickup_ammo_west", pickupType: "ammo", x: 430, y: 505 },
+  { id: "pickup_shotgun", pickupType: "shotgun", x: 1530, y: 825 },
+  { id: "pickup_shield_2", pickupType: "shield", x: 1475, y: 790 },
+  { id: "pickup_ammo_east", pickupType: "ammo", x: 1595, y: 640 },
+  { id: "pickup_rifle_north", pickupType: "rifle", x: 960, y: 310 },
+  { id: "pickup_shield_west", pickupType: "shield", x: 520, y: 675 },
+  { id: "pickup_coin_north", pickupType: "coin", x: 1320, y: 300 },
+  { id: "pickup_medkit_south", pickupType: "medkit", x: 925, y: 835 },
+  { id: "pickup_ammo_center", pickupType: "ammo", x: 1040, y: 560 },
+  { id: "pickup_shotgun_west", pickupType: "shotgun", x: 360, y: 675 },
+  { id: "pickup_shield_east", pickupType: "shield", x: 1710, y: 500 },
+  { id: "pickup_ammo_south", pickupType: "ammo", x: 1260, y: 900 }
+];
 
 export const createInitialGameState = (): GameState => {
   const entities: Record<string, EntityState> = {};
@@ -110,17 +242,15 @@ export const createInitialGameState = (): GameState => {
     entities[entity.id] = entity;
   };
 
-  add(createFighter(PLAYER_ID, "player", "Rogue99", "rogue", 1, 990, 520));
-  add(createFighter("bot_samurai", "bot", "PixelSamurai", "samurai", 2, 1185, 325));
-  add(createFighter("bot_ninja", "bot", "WildNinja", "ninja", 3, 900, 185));
-  add(createFighter("bot_cowboy", "bot", "Cowboy", "cowboy", 4, 560, 520));
-  add(createFighter("bot_mage", "bot", "MageDude", "mage", 5, 1090, 710));
+  add(createFighter(PLAYER_ID, "player", "游侠99", "rogue", 1, 990, 520));
+  add(createFighter("bot_samurai", "bot", "像素武士", "samurai", 2, 1185, 325));
+  add(createFighter("bot_ninja", "bot", "荒野忍者", "ninja", 3, 900, 185));
+  add(createFighter("bot_cowboy", "bot", "牛仔枪手", "cowboy", 4, 560, 520));
+  add(createFighter("bot_mage", "bot", "秘法法师", "mage", 5, 1090, 710));
 
-  add(createPve("pve_bat_west", "bat", 180, 725));
-  add(createPve("pve_bat_east", "bat", 1505, 615));
-  add(createPve("pve_bat_north", "bat", 1350, 160));
-  add(createPve("pve_slime_center", "slime", 1280, 655));
-  add(createPve("pve_slime_southwest", "slime", 700, 805));
+  for (const spawn of INITIAL_PVE_SPAWNS) {
+    add(createPve(spawn.id, spawn.pveType, spawn.x, spawn.y));
+  }
 
   for (const pickup of createInitialPickups()) {
     add(pickup);
@@ -144,11 +274,11 @@ export const createInitialGameState = (): GameState => {
     },
     inventory: {
       selectedSlot: 1,
-      pistolAmmo: 25,
-      shotgunAmmo: 10,
-      rifleAmmo: 30,
-      shieldPotions: 2,
-      medkits: 1,
+      pistolAmmo: 50,
+      shotgunAmmo: 20,
+      rifleAmmo: 60,
+      shieldPotions: 4,
+      medkits: 2,
       coins: 0
     },
     scoreboard: {
@@ -157,6 +287,7 @@ export const createInitialGameState = (): GameState => {
       pveKills: 0,
       shotsFired: 0
     },
+    progression: createInitialProgression(),
     events: [],
     nextEventId: 1,
     nextEntityId: 1
@@ -241,43 +372,78 @@ const createFighter = (
   aimAngle: 0
 });
 
-const createPve = (id: string, pveType: PveType, x: number, y: number): EntityState => ({
-  id,
-  kind: "pve",
-  pveType,
-  x,
-  y,
-  radius: pveType === "bat" ? 18 : 20,
-  alive: true,
-  health: pveType === "bat" ? 48 : 70,
-  maxHealth: pveType === "bat" ? 48 : 70,
-  speed: pveType === "bat" ? 150 : 95,
-  touchCooldownMs: 0,
-  aiThinkMs: 0,
-  aiMoveAngle: Math.random() * Math.PI * 2
+const createInitialProgression = (): ProgressionState => ({
+  level: 1,
+  xp: 0,
+  xpToNextLevel: XP_THRESHOLDS[1] ?? 40,
+  damageMultiplier: 1,
+  speedMultiplier: 1
 });
 
-const createInitialPickups = (): EntityState[] => [
-  createPickup("pickup_rifle", "rifle", 560, 375),
-  createPickup("pickup_shield_1", "shield", 900, 250),
-  createPickup("pickup_coin", "coin", 760, 780),
-  createPickup("pickup_medkit", "medkit", 1135, 870),
-  createPickup("pickup_ammo_west", "ammo", 430, 505),
-  createPickup("pickup_shotgun", "shotgun", 1530, 825),
-  createPickup("pickup_shield_2", "shield", 1475, 790),
-  createPickup("pickup_ammo_east", "ammo", 1595, 640)
-];
+const createPve = (id: string, pveType: PveType, x: number, y: number): EntityState => {
+  const definition = PVE_DEFINITIONS[pveType];
+  const position = findSafeSpawnPosition(x, y, definition.radius, PVE_SPAWN_CLEARANCE, { kind: "pve", pveType });
+  return {
+    id,
+    kind: "pve",
+    pveType,
+    x: position.x,
+    y: position.y,
+    radius: definition.radius,
+    alive: true,
+    health: definition.health,
+    maxHealth: definition.health,
+    speed: definition.speed,
+    touchCooldownMs: 0,
+    aiThinkMs: 0,
+    aiMoveAngle: Math.random() * Math.PI * 2
+  };
+};
 
-const createPickup = (id: string, pickupType: PickupType, x: number, y: number): EntityState => ({
-  id,
-  kind: "pickup",
-  pickupType,
-  x,
-  y,
-  radius: PICKUP_RADIUS,
-  alive: true,
-  ageMs: 0
-});
+const createInitialPickups = (): EntityState[] =>
+  INITIAL_PICKUP_SPAWNS.map((spawn) => createPickup(spawn.id, spawn.pickupType, spawn.x, spawn.y));
+
+const createPickup = (id: string, pickupType: PickupType, x: number, y: number): EntityState => {
+  const position = findSafeSpawnPosition(x, y, PICKUP_RADIUS, PICKUP_SPAWN_CLEARANCE, { kind: "pickup" });
+  return {
+    id,
+    kind: "pickup",
+    pickupType,
+    x: position.x,
+    y: position.y,
+    radius: PICKUP_RADIUS,
+    alive: true,
+    ageMs: 0
+  };
+};
+
+const findSafeSpawnPosition = (
+  x: number,
+  y: number,
+  radius: number,
+  clearance: number,
+  entity: SpawnCollisionEntity
+) => {
+  const safeRadius = radius + clearance;
+  const clamped = clampToWorld(x, y, safeRadius);
+  if (!collidesForMovement(entity, clamped.x, clamped.y, safeRadius)) {
+    return clamped;
+  }
+
+  for (let ring = 1; ring <= 8; ring += 1) {
+    const distance = ring * 28;
+    const attempts = ring * 12;
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      const angle = attempt * ((Math.PI * 2) / attempts) + ring * 0.37;
+      const candidate = clampToWorld(x + Math.cos(angle) * distance, y + Math.sin(angle) * distance, safeRadius);
+      if (!collidesForMovement(entity, candidate.x, candidate.y, safeRadius)) {
+        return candidate;
+      }
+    }
+  }
+
+  return clamped;
+};
 
 const updateStorm = (state: GameState, deltaMs: number) => {
   state.storm.elapsedMs += deltaMs;
@@ -317,8 +483,8 @@ const updatePlayer = (state: GameState, input: InputFrame, deltaMs: number) => {
   const length = Math.hypot(input.moveX, input.moveY) || 1;
   moveEntity(
     player,
-    (input.moveX / length) * (player.speed ?? 0) * (deltaMs / 1_000),
-    (input.moveY / length) * (player.speed ?? 0) * (deltaMs / 1_000)
+    (input.moveX / length) * (player.speed ?? 0) * state.progression.speedMultiplier * (deltaMs / 1_000),
+    (input.moveY / length) * (player.speed ?? 0) * state.progression.speedMultiplier * (deltaMs / 1_000)
   );
   player.aimAngle = Math.atan2(input.aimY - player.y, input.aimX - player.x);
 
@@ -436,10 +602,10 @@ const updatePve = (state: GameState, entities: EntityList, deltaMs: number) => {
       } else {
         pve.aiMoveAngle = (pve.aiMoveAngle ?? 0) + (Math.random() - 0.5) * 1.4;
       }
-      pve.aiThinkMs = pve.pveType === "slime" ? 520 : 260;
+      pve.aiThinkMs = pveDefinition(pve).thinkMs;
     }
 
-    const pulse = pve.pveType === "slime" ? 0.55 + Math.abs(Math.sin(state.matchTimeMs / 260)) : 1;
+    const pulse = pveMovementPulse(state, pve);
     moveEntity(
       pve,
       Math.cos(pve.aiMoveAngle ?? 0) * (pve.speed ?? 0) * pulse * (deltaMs / 1_000),
@@ -453,9 +619,9 @@ const updatePve = (state: GameState, entities: EntityList, deltaMs: number) => {
       distanceBetween(pve, target) < pve.radius + target.radius + 8
     ) {
       if (target.kind !== "bot" || state.matchTimeMs > 20_000) {
-        damageEntity(state, target, pve.pveType === "slime" ? 5 : 3, pve.id);
+        damageEntity(state, target, pveDefinition(pve).touchDamage, pve.id);
       }
-      pve.touchCooldownMs = pve.pveType === "slime" ? 1_250 : 1_050;
+      pve.touchCooldownMs = pveDefinition(pve).touchCooldownMs;
       const pushAngle = Math.atan2(target.y - pve.y, target.x - pve.x);
       moveEntity(target, Math.cos(pushAngle) * 10, Math.sin(pushAngle) * 10);
     }
@@ -526,7 +692,10 @@ const fireWeapon = (
       alive: true,
       vx: Math.cos(angle) * weapon.projectileSpeed,
       vy: Math.sin(angle) * weapon.projectileSpeed,
-      damage: shooter.kind === "bot" ? weapon.damage * 0.35 : weapon.damage,
+      damage:
+        shooter.kind === "bot"
+          ? weapon.damage * 0.35
+          : weapon.damage * (shooter.id === state.playerId ? state.progression.damageMultiplier : 1),
       ownerId: shooter.id,
       distanceLeft: weapon.range,
       ageMs: 0
@@ -600,6 +769,24 @@ const applyUsableItem = (state: GameState, input: InputFrame) => {
   }
 };
 
+const pveDefinition = (entity: EntityState) => PVE_DEFINITIONS[entity.pveType ?? "bat"];
+
+const pveMovementPulse = (state: GameState, pve: EntityState) => {
+  if (pve.pveType === "slime") {
+    return 0.55 + Math.abs(Math.sin(state.matchTimeMs / 260));
+  }
+  if (pve.pveType === "wolf") {
+    return 1.08 + Math.abs(Math.sin(state.matchTimeMs / 180)) * 0.18;
+  }
+  if (pve.pveType === "spitter") {
+    return 0.82 + Math.abs(Math.sin(state.matchTimeMs / 420)) * 0.22;
+  }
+  if (pve.pveType === "golem") {
+    return 0.72 + Math.abs(Math.sin(state.matchTimeMs / 520)) * 0.18;
+  }
+  return 1;
+};
+
 const applyStormDamage = (entities: EntityList, state: GameState, deltaMs: number) => {
   for (const entity of entities) {
     if (!entity.alive || !isDamageable(entity)) {
@@ -638,11 +825,87 @@ const damageEntity = (
     if (sourceId === state.playerId) {
       if (entity.kind === "pve") {
         state.scoreboard.pveKills += 1;
+        rewardPveKill(state, entity);
       } else {
         state.scoreboard.kills += 1;
       }
     }
   }
+};
+
+const rewardPveKill = (state: GameState, entity: EntityState) => {
+  const xp = pveDefinition(entity).xp;
+  state.progression.xp += xp;
+  pushEvent(state, "xp", entity.x, entity.y, entity.id, xp);
+  applyLevelUps(state, entity.x, entity.y);
+  dropLootForKill(state, entity);
+};
+
+const applyLevelUps = (state: GameState, x: number, y: number) => {
+  const player = state.entities[state.playerId];
+  while (state.progression.xp >= state.progression.xpToNextLevel && state.progression.level < XP_THRESHOLDS.length) {
+    state.progression.xp -= state.progression.xpToNextLevel;
+    state.progression.level += 1;
+    state.progression.xpToNextLevel = XP_THRESHOLDS[state.progression.level] ?? state.progression.xpToNextLevel + 220;
+    state.progression.damageMultiplier = 1 + (state.progression.level - 1) * 0.06;
+    state.progression.speedMultiplier = Math.min(1.24, 1 + (state.progression.level - 1) * 0.03);
+
+    if (player) {
+      player.maxHealth = (player.maxHealth ?? 100) + 10;
+      player.health = Math.min(player.maxHealth, (player.health ?? 0) + 10);
+    }
+    state.inventory.pistolAmmo += 8;
+    state.inventory.shotgunAmmo += 2;
+    state.inventory.rifleAmmo += 6;
+    pushEvent(state, "levelup", x, y, state.playerId, state.progression.level);
+  }
+};
+
+const dropLootForKill = (state: GameState, entity: EntityState) => {
+  const roll = lootRoll(entity, state.scoreboard.pveKills);
+  const pickupType = lootTypeForRoll(entity.pveType ?? "bat", roll);
+  const angle = roll * Math.PI * 2;
+  const distance = entity.radius + PICKUP_RADIUS + 14;
+  const position = clampToWorld(entity.x + Math.cos(angle) * distance, entity.y + Math.sin(angle) * distance, PICKUP_RADIUS);
+  const id = `loot_${pickupType}_${state.nextEntityId}`;
+  state.nextEntityId += 1;
+  state.entities[id] = createPickup(id, pickupType, position.x, position.y);
+  pushEvent(state, "loot", position.x, position.y, id, lootValue(pickupType));
+};
+
+const lootRoll = (entity: EntityState, killCount: number) => {
+  const idValue = [...entity.id].reduce((total, char) => total + char.charCodeAt(0), 0);
+  return ((idValue * 37 + killCount * 53) % 1_000) / 1_000;
+};
+
+const lootTypeForRoll = (pveType: PveType, roll: number): PickupType => {
+  const eliteBonus = pveType === "golem" || pveType === "spitter" ? 0.08 : 0;
+  if (roll < 0.34 - eliteBonus) {
+    return "coin";
+  }
+  if (roll < 0.62 - eliteBonus) {
+    return "ammo";
+  }
+  if (roll < 0.76) {
+    return "shield";
+  }
+  if (roll < 0.88) {
+    return "medkit";
+  }
+  return pveType === "golem" || roll > 0.95 ? "rifle" : "shotgun";
+};
+
+const lootValue = (pickupType: PickupType) => {
+  if (pickupType === "coin") {
+    return 1;
+  }
+  if (pickupType === "ammo") {
+    return 3;
+  }
+  if (pickupType === "shield" || pickupType === "medkit") {
+    return 2;
+  }
+  return 4;
 };
 
 const moveEntity = (entity: EntityState, dx: number, dy: number) => {

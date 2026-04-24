@@ -12,3 +12,52 @@ Original prompt: /Users/zhangjinhui/Desktop/battle-royale-codex/game.png
 - 生成当前游戏截图，与参考图对比边界外风暴、边缘电弧和安全区裁切差异。
 - 修改风暴层绘制：外部紫色风暴海、柔和暗角、厚紫白电弧、多段闪电。
 - 运行构建与浏览器截图验证。
+
+---
+
+# 当前任务：怪物击杀成长、装备掉落与怪物扩展
+
+## 进度
+
+- 已创建 agent team：`monster-progression-team`。
+- 已按用户要求进入“先给具体实施方案，再等待确认”的流程。
+- 已确认当前仓库干净，尚未开始修改游戏代码。
+
+## 待办
+
+- 探索当前项目中的玩家、怪物、战斗、UI、测试结构。✅
+- 设计击杀升级、装备掉落、怪物种类扩展、平衡数值和反馈表现。✅
+- 给出具体实施方案，等待用户确认后再实现。✅
+- 团队报告已返回：代码探索和玩法设计都支持先做推荐版 V1。✅
+- 已完成核心模拟层初版：经验、升级、掉落、新怪物变体。✅
+- 已完成 HUD/视觉初版：等级 XP 面板、金币、伤害加成、新怪物颜色/大小区分。✅
+- 已补充模拟测试：新怪物存在、击杀得 XP 和掉落、经验足够升级。✅
+- 验证通过：`npm run typecheck`、`npm run test`、`npm run build`。✅
+- 浏览器验证通过：HUD 显示 LV/XP/金币/伤害加成，控制台无错误，截图保存到 `output/monster-progression-hud.png`。✅
+
+## 已发现
+
+- 核心逻辑在 `src/game/simulation/state.ts`。
+- Phaser 渲染在 `src/phaser/scenes/BattleScene.ts`。
+- HUD 在 `src/ui/hud/HudController.ts`。
+- 项目已有 PVE 怪物、击杀计数、拾取物、事件特效和 Vitest 测试，适合在现有结构上扩展。
+
+---
+
+# 当前任务：当前游戏全面汉化
+
+## 进度
+
+- 已按用户要求创建 agent team：`localization-team`。
+- 已执行 planning-with-files 会话补全检查；第一次因 `${CLAUDE_PLUGIN_ROOT}` 为空失败，第二次使用显式技能路径成功。
+- 已读取现有 `task_plan.md`、`findings.md`、`progress.md`，确认它们主要记录上一个怪物成长任务，本次采用追加新章节方式避免覆盖。
+- 已查看 `git diff --stat`，确认当前已有未提交改动，汉化必须只做必要文本改动。
+
+## 待办
+
+- 团队审计玩家可见英文文案。进行中：已定位网页标题、HUD 胜负提示、角色名和事件浮字方向。
+- 已修改网页语言/标题、HUD 等级/胜负提示、初始角色显示名、武器内容标签，以及 HUD/Phaser 中文字体栈。
+- 修改 UI、Phaser 场景、HTML/样式和相关测试期望中的玩家可见文案。进行中：等待审计代理最终回报后复扫。
+- 验证通过：`npm run typecheck`、`npm run test`、`npm run build`。
+- 浏览器烟测通过：标题为“大逃杀秘典”，开始公告、角色名、等级/金币/伤害 HUD 均为中文，按 Enter 可开始，控制台无错误，截图保存到 `output/localization-smoke.png`。
+- 复扫剩余英文完成：原英文标题、角色名、胜负提示、Press R、LV 等均已移除；剩余 `E` 是键位提示，保留合理。

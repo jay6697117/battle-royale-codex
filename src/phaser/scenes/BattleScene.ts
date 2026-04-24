@@ -62,7 +62,9 @@ interface ControlKeys {
   slot3: Phaser.Input.Keyboard.Key;
   slot4: Phaser.Input.Keyboard.Key;
   slot5: Phaser.Input.Keyboard.Key;
+  weaponCycle: Phaser.Input.Keyboard.Key;
   use: Phaser.Input.Keyboard.Key;
+  start: Phaser.Input.Keyboard.Key;
   restart: Phaser.Input.Keyboard.Key;
 }
 
@@ -82,6 +84,8 @@ export class BattleScene extends Phaser.Scene {
   private activeEffects = new Set<Phaser.GameObjects.Sprite>();
   private selectedSlot = 1;
   private useItemQueued = false;
+  private matchStarted = false;
+  private suppressPointerInput = false;
   private lastEventId = 0;
 
   constructor() {
@@ -106,26 +110,28 @@ export class BattleScene extends Phaser.Scene {
 
   create() {
     this.state = createInitialGameState();
-    this.hud = new HudController(document.getElementById("hud-root"));
+    this.hud = new HudController(document.getElementById("hud-root"), () => this.startMatch());
     this.createAnimations();
     this.createMap();
     this.createInput();
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
     this.cameras.main.centerOn(WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
-    this.scale.on("resize", () => this.hud.update(this.state));
-    this.hud.update(this.state);
+    this.scale.on("resize", () => this.hud.update(this.state, Object.values(this.state.entities), !this.matchStarted));
+    this.hud.update(this.state, Object.values(this.state.entities), true);
     window.__battleState = this.state;
   }
 
   update(_time: number, delta: number) {
     const input = this.collectInput();
-    stepSimulation(this.state, input, Math.min(delta, 16.67));
+    if (this.matchStarted) {
+      stepSimulation(this.state, input, Math.min(delta, 16.67));
+    }
     const entities = Object.values(this.state.entities);
     window.__battleState = this.state;
     this.renderStorm();
     this.renderEntities(entities);
     this.renderEvents();
-    this.hud.update(this.state, entities);
+    this.hud.update(this.state, entities, !this.matchStarted);
   }
 
   private createInput() {
@@ -148,12 +154,18 @@ export class BattleScene extends Phaser.Scene {
       slot3: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.THREE),
       slot4: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FOUR),
       slot5: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FIVE),
+      weaponCycle: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E),
       use: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
+      start: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER),
       restart: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R)
     };
 
     this.input.mouse?.disableContextMenu();
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      if (!this.matchStarted) {
+        this.startMatch();
+        return;
+      }
       if (pointer.rightButtonDown()) {
         this.useItemQueued = true;
       }
@@ -161,6 +173,15 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private collectInput(): InputFrame {
+    if (!this.matchStarted && Phaser.Input.Keyboard.JustDown(this.keys.start)) {
+      this.startMatch();
+    }
+    if (!this.matchStarted) {
+      const frame = createEmptyInputFrame();
+      frame.selectedSlot = this.selectedSlot;
+      return frame;
+    }
+
     if (Phaser.Input.Keyboard.JustDown(this.keys.slot1)) {
       this.selectedSlot = 1;
     }
@@ -175,6 +196,9 @@ export class BattleScene extends Phaser.Scene {
     }
     if (Phaser.Input.Keyboard.JustDown(this.keys.slot5)) {
       this.selectedSlot = 5;
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.keys.weaponCycle)) {
+      this.selectedSlot = this.nextWeaponSlot(this.selectedSlot);
     }
     if (Phaser.Input.Keyboard.JustDown(this.keys.use)) {
       this.useItemQueued = true;
@@ -193,11 +217,31 @@ export class BattleScene extends Phaser.Scene {
       (this.keys.up.isDown || this.keys.arrowUp.isDown ? 1 : 0);
     frame.aimX = pointer.worldX;
     frame.aimY = pointer.worldY;
-    frame.shooting = pointer.isDown && !pointer.rightButtonDown() && this.selectedSlot <= 3;
+    frame.shooting = !this.suppressPointerInput && pointer.isDown && !pointer.rightButtonDown() && this.selectedSlot <= 3;
     frame.selectedSlot = this.selectedSlot;
-    frame.useItem = this.useItemQueued || (pointer.isDown && pointer.rightButtonDown());
+    frame.useItem = this.useItemQueued || (!this.suppressPointerInput && pointer.isDown && pointer.rightButtonDown());
     this.useItemQueued = false;
+    this.suppressPointerInput = false;
     return frame;
+  }
+
+  private startMatch() {
+    if (this.matchStarted) {
+      return;
+    }
+    this.matchStarted = true;
+    this.suppressPointerInput = true;
+    this.hud.update(this.state, Object.values(this.state.entities), false);
+  }
+
+  private nextWeaponSlot(currentSlot: number) {
+    if (currentSlot === 1) {
+      return 2;
+    }
+    if (currentSlot === 2) {
+      return 3;
+    }
+    return 1;
   }
 
   private restartMatch() {
@@ -207,6 +251,9 @@ export class BattleScene extends Phaser.Scene {
     this.entityViews.clear();
     this.state = createInitialGameState();
     this.selectedSlot = 1;
+    this.useItemQueued = false;
+    this.matchStarted = false;
+    this.suppressPointerInput = false;
     this.lastEventId = 0;
   }
 
@@ -512,14 +559,13 @@ export class BattleScene extends Phaser.Scene {
       sprite.setScale(0.9);
     }
     if (entity.kind === "pve") {
-      const animation = entity.pveType === "slime" ? enemySheetKey("slime", "hop") : enemySheetKey("bat", "fly");
-      this.playEntityAnimation(view, animation);
-      sprite.setScale(0.78);
+      this.playEntityAnimation(view, this.animationForPve(entity));
+      this.stylePveSprite(entity, sprite);
     }
     if (entity.kind === "player" || entity.kind === "bot") {
       sprite.setScale(0.72);
       const label = this.add.text(0, -48, entity.label ?? "", {
-        fontFamily: "monospace",
+        fontFamily: "PingFang SC, Microsoft YaHei, Noto Sans SC, sans-serif",
         fontSize: "13px",
         color: "#f8ffe7",
         stroke: "#172019",
@@ -583,6 +629,40 @@ export class BattleScene extends Phaser.Scene {
     return characterSheetKey(role, animation);
   }
 
+  private animationForPve(entity: EntityState) {
+    if (entity.pveType === "slime" || entity.pveType === "spitter" || entity.pveType === "golem") {
+      return enemySheetKey("slime", "hop");
+    }
+    return enemySheetKey("bat", entity.pveType === "wolf" ? "dash" : "fly");
+  }
+
+  private textureForPve(entity: EntityState) {
+    if (entity.pveType === "slime" || entity.pveType === "spitter" || entity.pveType === "golem") {
+      return enemySheetKey("slime", "idle");
+    }
+    return enemySheetKey("bat", "fly");
+  }
+
+  private stylePveSprite(entity: EntityState, sprite: Phaser.GameObjects.Sprite) {
+    const tintByType = {
+      bat: 0xffffff,
+      slime: 0xffffff,
+      wolf: 0xd8d3ff,
+      spitter: 0x80ff86,
+      golem: 0xb8b8c4
+    } as const;
+    const scaleByType = {
+      bat: 0.78,
+      slime: 0.78,
+      wolf: 0.84,
+      spitter: 0.86,
+      golem: 1.08
+    } as const;
+    const type = entity.pveType ?? "bat";
+    sprite.setScale(scaleByType[type]);
+    sprite.setTint(tintByType[type]);
+  }
+
   private renderHealthBar(graphics: Phaser.GameObjects.Graphics, entity: EntityState) {
     const width = 46;
     const healthRatio = Math.max(0, Math.min(1, (entity.health ?? 0) / (entity.maxHealth ?? 100)));
@@ -615,10 +695,16 @@ export class BattleScene extends Phaser.Scene {
       }
     }
     const animationKey =
-      event.type === "pickup" ? "fx-pickup-ring" : event.type === "shoot" ? "fx-muzzle-flash" : TextureKey.Spark;
+      event.type === "pickup" || event.type === "loot"
+        ? "fx-pickup-ring"
+        : event.type === "shoot"
+          ? "fx-muzzle-flash"
+          : TextureKey.Spark;
     const effect = this.add.sprite(event.x, event.y, animationKey);
     this.activeEffects.add(effect);
     effect.setDepth(85);
+    effect.setScale(event.type === "levelup" ? 1.45 : event.type === "xp" ? 0.8 : 1);
+    effect.setTint(event.type === "levelup" ? 0xffd45a : event.type === "loot" ? 0x9fffa1 : 0xffffff);
     effect.play(animationKey);
     const destroyEffect = () => {
       if (!effect.active) {
@@ -642,7 +728,7 @@ export class BattleScene extends Phaser.Scene {
       return TextureKey.Projectile;
     }
     if (entity.kind === "pve") {
-      return entity.pveType === "slime" ? enemySheetKey("slime", "idle") : enemySheetKey("bat", "fly");
+      return this.textureForPve(entity);
     }
     if (entity.kind === "pickup") {
       return pickupGlowKey((entity.pickupType ?? "coin") as PickupType);

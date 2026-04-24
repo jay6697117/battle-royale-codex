@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { collidesForMovement } from "../content/map";
 import { createInitialGameState, stepSimulation } from "./state";
 import type { InputFrame } from "../input/actions";
 
@@ -100,6 +101,129 @@ describe("battle royale simulation", () => {
     stepSimulation(state, { ...emptyInput, selectedSlot: 5, useItem: true }, 80);
     expect(player.health).toBeGreaterThan(42);
     expect(state.inventory.medkits).toBeGreaterThanOrEqual(1);
+  });
+
+  it("spawns expanded pve monster variants", () => {
+    const state = createInitialGameState();
+    const pveTypes = Object.values(state.entities)
+      .filter((entity) => entity.kind === "pve")
+      .map((entity) => entity.pveType);
+
+    expect(pveTypes.length).toBeGreaterThanOrEqual(20);
+    expect(pveTypes).toContain("wolf");
+    expect(pveTypes).toContain("spitter");
+    expect(pveTypes).toContain("golem");
+  });
+
+  it("keeps initial pve and pickup spawns out of blocked map zones", () => {
+    const state = createInitialGameState();
+    const spawnedEntities = Object.values(state.entities).filter(
+      (entity) => entity.kind === "pve" || entity.kind === "pickup"
+    );
+
+    expect(spawnedEntities.filter((entity) => entity.kind === "pickup")).toHaveLength(16);
+    for (const entity of spawnedEntities) {
+      expect(collidesForMovement(entity, entity.x, entity.y, entity.radius + 8)).toBe(false);
+    }
+  });
+
+  it("starts the player with doubled inventory resources", () => {
+    const state = createInitialGameState();
+
+    expect(state.inventory.pistolAmmo).toBeGreaterThanOrEqual(50);
+    expect(state.inventory.shotgunAmmo).toBeGreaterThanOrEqual(20);
+    expect(state.inventory.rifleAmmo).toBeGreaterThanOrEqual(60);
+    expect(state.inventory.shieldPotions).toBeGreaterThanOrEqual(4);
+    expect(state.inventory.medkits).toBeGreaterThanOrEqual(2);
+  });
+
+  it("rewards player pve kills with xp and loot drops", () => {
+    const state = createInitialGameState();
+    const player = requireEntity(state, state.playerId);
+    const bat = requireEntity(state, "pve_bat_west");
+    for (const entity of Object.values(state.entities)) {
+      if (entity.id !== state.playerId && entity.id !== bat.id && entity.id !== "bot_mage" && entity.kind !== "pickup") {
+        entity.alive = false;
+      }
+    }
+    const passiveBot = requireEntity(state, "bot_mage");
+    passiveBot.x = 1_700;
+    passiveBot.y = 920;
+    passiveBot.fireCooldownMs = 90_000;
+    passiveBot.aiThinkMs = 90_000;
+
+    player.x = 500;
+    player.y = 500;
+    bat.x = 610;
+    bat.y = 500;
+    bat.aiThinkMs = 10_000;
+    bat.aiMoveAngle = 0;
+    bat.speed = 0;
+    bat.health = 1;
+    bat.shield = 0;
+    stepSimulation(
+      state,
+      {
+        ...emptyInput,
+        aimX: bat.x,
+        aimY: bat.y,
+        shooting: true,
+        selectedSlot: 3
+      },
+      120
+    );
+    stepSimulation(state, { ...emptyInput, selectedSlot: 3 }, 260);
+
+    expect(bat.alive).toBe(false);
+    expect(state.scoreboard.pveKills).toBe(1);
+    expect(state.progression.xp).toBeGreaterThan(0);
+    expect(Object.values(state.entities).some((entity) => entity.kind === "pickup" && entity.id.startsWith("loot_"))).toBe(true);
+  });
+
+  it("levels up after enough monster experience", () => {
+    const state = createInitialGameState();
+    const player = requireEntity(state, state.playerId);
+    const spitter = requireEntity(state, "pve_spitter_east");
+    for (const entity of Object.values(state.entities)) {
+      if (entity.id !== state.playerId && entity.id !== spitter.id && entity.id !== "bot_mage" && entity.kind !== "pickup") {
+        entity.alive = false;
+      }
+    }
+    const passiveBot = requireEntity(state, "bot_mage");
+    passiveBot.x = 1_700;
+    passiveBot.y = 920;
+    passiveBot.fireCooldownMs = 90_000;
+    passiveBot.aiThinkMs = 90_000;
+
+    state.progression.xp = 35;
+    player.health = 80;
+    player.x = 500;
+    player.y = 500;
+    spitter.x = 610;
+    spitter.y = 500;
+    spitter.aiThinkMs = 10_000;
+    spitter.aiMoveAngle = 0;
+    spitter.speed = 0;
+    spitter.health = 1;
+    spitter.shield = 0;
+    stepSimulation(
+      state,
+      {
+        ...emptyInput,
+        aimX: spitter.x,
+        aimY: spitter.y,
+        shooting: true,
+        selectedSlot: 3
+      },
+      120
+    );
+    stepSimulation(state, { ...emptyInput, selectedSlot: 3 }, 260);
+
+    expect(state.progression.level).toBe(2);
+    expect(state.progression.damageMultiplier).toBeGreaterThan(1);
+    expect(state.progression.speedMultiplier).toBeGreaterThan(1);
+    expect(player.maxHealth).toBe(110);
+    expect(player.health).toBeGreaterThan(80);
   });
 
   it("lets bots choose weak targets and finish the match when all enemy fighters fall", () => {

@@ -225,7 +225,7 @@ export class BattleScene extends Phaser.Scene {
     frame.aimY = pointer.worldY;
     frame.shooting = !this.suppressPointerInput && pointer.isDown && !pointer.rightButtonDown() && this.selectedSlot <= 3;
     frame.selectedSlot = this.selectedSlot;
-    frame.useItem = this.useItemQueued || (!this.suppressPointerInput && pointer.isDown && pointer.rightButtonDown());
+    frame.useItem = this.useItemQueued;
     this.useItemQueued = false;
     this.suppressPointerInput = false;
     return frame;

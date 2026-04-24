@@ -1,0 +1,55 @@
+- generic [ref=e2]:
+  - generic:
+    - generic:
+      - generic:
+        - generic: "1"
+        - generic:
+          - generic: Rogue99
+          - generic: 100/100
+      - generic:
+        - generic: "2"
+        - generic:
+          - generic: PixelSamurai
+          - generic: 100/100
+      - generic:
+        - generic: "3"
+        - generic:
+          - generic: WildNinja
+          - generic: 100/100
+      - generic:
+        - generic: "4"
+        - generic:
+          - generic: Cowboy
+          - generic: 100/100
+      - generic:
+        - generic: "5"
+        - generic:
+          - generic: MageDude
+          - generic: 100/100
+    - generic:
+      - generic:
+        - generic: ●
+        - text: "5"
+      - generic:
+        - generic: ◆
+        - text: "0"
+    - generic: 2:30
+    - generic:
+      - button "◈"
+      - button "☺"
+    - generic:
+      - generic:
+        - generic: "1"
+        - strong: "25"
+      - generic:
+        - generic: "2"
+        - strong: "10"
+      - generic:
+        - generic: "3"
+        - strong: "30"
+      - generic:
+        - generic: "4"
+        - strong: "2"
+      - generic:
+        - generic: "5"
+        - strong: "1"

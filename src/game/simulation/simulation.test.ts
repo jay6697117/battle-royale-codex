@@ -117,10 +117,13 @@ describe("battle royale simulation", () => {
       bot.health = 100;
     }
 
-    stepSimulation(state, emptyInput, 2_200);
+    stepSimulation(state, emptyInput, 31_000);
 
     expect(player.health ?? 0).toBeLessThan(28);
 
+    player.alive = true;
+    player.health = 10;
+    state.phase = "playing";
     for (const bot of bots) {
       bot.health = 0;
       bot.alive = false;

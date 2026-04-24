@@ -58,9 +58,11 @@ body,
   align-items: center;
   min-height: 60px;
   padding: 6px 10px 6px 4px;
-  border: 2px solid var(--hud-edge);
+  border: 0;
   border-radius: 8px;
-  background: linear-gradient(90deg, rgba(39, 21, 74, 0.9), rgba(16, 18, 20, 0.46));
+  background:
+    url("/assets/ui/team-panel.png") center / 100% 100% no-repeat,
+    linear-gradient(90deg, rgba(39, 21, 74, 0.9), rgba(16, 18, 20, 0.46));
   box-shadow: 0 4px 0 rgba(0, 0, 0, 0.28);
 }
 
@@ -77,9 +79,31 @@ body,
   border: 2px solid rgba(255, 255, 255, 0.55);
   border-radius: 5px;
   background: #3c94d8;
+  background-position: center;
+  background-size: 100% 100%;
   color: white;
   font-weight: 900;
   text-shadow: 0 2px #132033;
+}
+
+.fighter-rank.rank-1 {
+  background-image: url("/assets/ui/rank-1.png");
+}
+
+.fighter-rank.rank-2 {
+  background-image: url("/assets/ui/rank-2.png");
+}
+
+.fighter-rank.rank-3 {
+  background-image: url("/assets/ui/rank-3.png");
+}
+
+.fighter-rank.rank-4 {
+  background-image: url("/assets/ui/rank-4.png");
+}
+
+.fighter-rank.rank-5 {
+  background-image: url("/assets/ui/rank-5.png");
 }
 
 .fighter-portrait {
@@ -88,24 +112,30 @@ body,
   border: 3px solid #1b1b22;
   border-radius: 8px;
   background: #222;
+  background-position: center;
+  background-size: cover;
   box-shadow: inset 0 -10px rgba(0, 0, 0, 0.24);
 }
 
 .fighter-portrait.samurai {
-  background: linear-gradient(#e43e32, #64251e);
+  background-image: url("/assets/ui/portrait-samurai.png");
 }
 
 .fighter-portrait.ninja,
 .fighter-portrait.rogue {
-  background: linear-gradient(#273130, #111818);
+  background-image: url("/assets/ui/portrait-rogue.png");
+}
+
+.fighter-portrait.ninja {
+  background-image: url("/assets/ui/portrait-ninja.png");
 }
 
 .fighter-portrait.cowboy {
-  background: linear-gradient(#b77738, #432716);
+  background-image: url("/assets/ui/portrait-cowboy.png");
 }
 
 .fighter-portrait.mage {
-  background: linear-gradient(#2a75e4, #17245b);
+  background-image: url("/assets/ui/portrait-mage.png");
 }
 
 .fighter-body {
@@ -174,9 +204,11 @@ body,
   min-height: 38px;
   gap: 8px;
   padding: 6px 16px;
-  border: 2px solid var(--hud-edge);
+  border: 0;
   border-radius: 8px;
-  background: var(--hud-bg);
+  background:
+    url("/assets/ui/stat-pill.png") center / 100% 100% no-repeat,
+    var(--hud-bg);
   color: white;
   font-size: clamp(16px, 1.5vw, 24px);
   font-weight: 900;
@@ -198,7 +230,7 @@ body,
   width: min(230px, 18vw);
   aspect-ratio: 1;
   overflow: hidden;
-  border: 5px solid rgba(255, 255, 255, 0.86);
+  border: 0;
   border-radius: 50%;
   background:
     radial-gradient(circle at 30% 70%, #2f7fb0 0 13%, transparent 14%),
@@ -206,6 +238,15 @@ body,
     repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.05) 0 3px, transparent 3px 16px),
     #75a85a;
   box-shadow: 0 8px 0 rgba(0, 0, 0, 0.28);
+}
+
+.mini-map::after {
+  position: absolute;
+  inset: -6px;
+  z-index: 5;
+  pointer-events: none;
+  background: url("/assets/ui/minimap-frame.png") center / 100% 100% no-repeat;
+  content: "";
 }
 
 .mini-storm {
@@ -281,7 +322,9 @@ body,
   place-items: center;
   border: 4px solid #24202e;
   border-radius: 8px;
-  background: #181a24;
+  background:
+    url("/assets/ui/action-button.png") center / 100% 100% no-repeat,
+    #181a24;
   color: white;
   font-size: 28px;
   font-weight: 900;
@@ -305,12 +348,15 @@ body,
   place-items: center;
   border: 4px solid #22232b;
   border-radius: 8px;
-  background: rgba(28, 29, 32, 0.92);
+  background:
+    url("/assets/ui/inventory-slot.png") center / 100% 100% no-repeat,
+    rgba(28, 29, 32, 0.92);
   box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.14), 0 5px 0 rgba(0, 0, 0, 0.32);
 }
 
 .inventory-slot.active {
   border-color: var(--gold);
+  background-image: url("/assets/ui/inventory-slot-active.png");
   box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.22), 0 0 20px rgba(255, 212, 90, 0.45);
 }
 
@@ -336,35 +382,31 @@ body,
   width: 34px;
   height: 22px;
   border-radius: 3px;
-  background: #a66b3f;
-  box-shadow: inset 18px 8px #222;
+  background: center / contain no-repeat;
 }
 
 .slot-icon.shield,
 .slot-icon.medkit {
   width: 30px;
   height: 34px;
-  border: 3px solid #1a1c24;
-  background: #4ca8ff;
-  box-shadow: inset 0 -10px rgba(255, 255, 255, 0.28);
+  border: 0;
+}
+
+.slot-icon.pistol,
+.slot-icon.rifle {
+  background-image: url("/assets/pickups/rifle.png");
+}
+
+.slot-icon.shotgun {
+  background-image: url("/assets/pickups/shotgun.png");
+}
+
+.slot-icon.shield {
+  background-image: url("/assets/pickups/shield.png");
 }
 
 .slot-icon.medkit {
-  background: #f0f3eb;
-}
-
-.slot-icon.medkit::before,
-.slot-icon.medkit::after {
-  position: absolute;
-  display: block;
-  width: 18px;
-  height: 5px;
-  background: #d83131;
-  content: "";
-}
-
-.slot-icon.medkit::after {
-  transform: rotate(90deg);
+  background-image: url("/assets/pickups/medkit.png");
 }
 
 .player-vitals {

@@ -371,6 +371,7 @@ export const chooseBotTarget = (state: GameState, bot: EntityState): EntityState
       entity.id !== bot.id &&
       entity.alive &&
       (entity.kind === "player" || entity.kind === "bot" || entity.kind === "pve") &&
+      (entity.kind !== "player" || state.matchTimeMs > 30_000) &&
       (entity.kind !== "bot" || state.matchTimeMs > 30_000) &&
       isDamageable(entity)
   );
@@ -438,8 +439,10 @@ const updatePve = (state: GameState, deltaMs: number) => {
       (pve.touchCooldownMs ?? 0) <= 0 &&
       distanceBetween(pve, target) < pve.radius + target.radius + 8
     ) {
-      damageEntity(state, target, pve.pveType === "slime" ? 6 : 4, pve.id);
-      pve.touchCooldownMs = pve.pveType === "slime" ? 760 : 620;
+      if (target.kind !== "bot" || state.matchTimeMs > 20_000) {
+        damageEntity(state, target, pve.pveType === "slime" ? 5 : 3, pve.id);
+      }
+      pve.touchCooldownMs = pve.pveType === "slime" ? 1_250 : 1_050;
       const pushAngle = Math.atan2(target.y - pve.y, target.x - pve.x);
       moveEntity(target, Math.cos(pushAngle) * 10, Math.sin(pushAngle) * 10);
     }

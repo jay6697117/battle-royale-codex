@@ -72,7 +72,7 @@ export class HudController {
     const deadClass = fighter.alive ? "" : " dead";
     return `
       <div class="fighter-row${deadClass}">
-        <div class="fighter-rank">${fighter.teamIndex ?? 0}</div>
+        <div class="fighter-rank rank-${fighter.teamIndex ?? 0}">${fighter.teamIndex ?? 0}</div>
         <div class="fighter-portrait ${fighter.role ?? "rogue"}"></div>
         <div class="fighter-body">
           <div class="fighter-name">${fighter.label ?? fighter.id}</div>

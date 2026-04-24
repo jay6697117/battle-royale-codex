@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { collidesForMovement, collidesForProjectile } from "./map";
+import { MAP_FEATURES, collidesForMovement, collidesForProjectile } from "./map";
 
 describe("map collision semantics", () => {
   it("blocks grounded entities on ponds while allowing flying PvE to cross", () => {
@@ -25,5 +25,17 @@ describe("map collision semantics", () => {
   it("lets fighters move through foliage but not solid cover", () => {
     expect(collidesForMovement({ kind: "player" }, 125, 520, 17)).toBe(false);
     expect(collidesForMovement({ kind: "player" }, 710, 390, 17)).toBe(true);
+  });
+
+  it("blocks fighters and bullets on every visible crate and chest", () => {
+    const solidProps = MAP_FEATURES.filter((feature) => feature.kind === "crate" || feature.kind === "chest");
+
+    expect(solidProps.length).toBeGreaterThan(0);
+    for (const prop of solidProps) {
+      const centerX = prop.x + prop.width / 2;
+      const centerY = prop.y + prop.height / 2;
+      expect(collidesForMovement({ kind: "player" }, centerX, centerY, 17)).toBe(true);
+      expect(collidesForProjectile(centerX, centerY, 5)).toBe(true);
+    }
   });
 });

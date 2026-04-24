@@ -25,11 +25,12 @@ describe("storm visuals", () => {
     expect(Math.max(...distances)).toBeLessThanOrEqual(922);
   });
 
-  it("keeps the electric wall substantially thicker than a simple stroke", () => {
-    expect(STORM_EDGE_PROFILE.outerAuraWidth).toBeGreaterThanOrEqual(52);
-    expect(STORM_EDGE_PROFILE.midAuraWidth).toBeGreaterThanOrEqual(24);
-    expect(STORM_EDGE_PROFILE.coreWidth).toBeGreaterThanOrEqual(8);
-    expect(STORM_EDGE_PROFILE.spriteCount).toBeGreaterThanOrEqual(20);
+  it("keeps the electric wall soft without overpowering the map", () => {
+    expect(STORM_EDGE_PROFILE.outerAuraWidth).toBeGreaterThanOrEqual(40);
+    expect(STORM_EDGE_PROFILE.midAuraWidth).toBeGreaterThanOrEqual(20);
+    expect(STORM_EDGE_PROFILE.coreWidth).toBeLessThanOrEqual(5);
+    expect(STORM_EDGE_PROFILE.spriteCount).toBeLessThanOrEqual(12);
+    expect(STORM_EDGE_PROFILE.outsideTextureAlpha).toBeLessThanOrEqual(0.4);
   });
 
   it("places lightning branches on the dangerous outside of the circle", () => {
@@ -47,7 +48,8 @@ describe("storm visuals", () => {
       const start = distanceFromCenter(branch[0]!, 960, 540);
       const end = distanceFromCenter(branch.at(-1)!, 960, 540);
       expect(start).toBeGreaterThanOrEqual(892);
-      expect(end).toBeGreaterThan(start + 18);
+      expect(end).toBeGreaterThan(start + 8);
+      expect(end).toBeLessThan(start + 30);
     }
   });
 });

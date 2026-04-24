@@ -23,6 +23,12 @@ import {
   type PickupType
 } from "../../game/simulation/state";
 import { HudController } from "../../ui/hud/HudController";
+import {
+  STORM_EDGE_PROFILE,
+  buildStormEdgePoints,
+  buildStormLightningBranches,
+  type StormVisualPoint
+} from "./stormVisuals";
 
 declare global {
   interface Window {
@@ -68,6 +74,7 @@ export class BattleScene extends Phaser.Scene {
   private keys!: ControlKeys;
   private entityViews = new Map<string, EntityView>();
   private stormLayer!: Phaser.GameObjects.Graphics;
+  private stormBackdrop!: Phaser.GameObjects.Graphics;
   private stormSea!: Phaser.GameObjects.TileSprite;
   private stormSeaMaskShape!: Phaser.GameObjects.Graphics;
   private stormSeaMask!: Phaser.Display.Masks.GeometryMask;
@@ -260,8 +267,9 @@ export class BattleScene extends Phaser.Scene {
         this.createFoliageCluster(feature.x, feature.y, feature.width, feature.height);
         continue;
       }
-      if (feature.kind === "crate") {
-        this.add.image(feature.x + feature.width / 2, feature.y + feature.height / 2, TextureKey.Crate).setDepth(25);
+      if (feature.kind === "crate" || feature.kind === "chest") {
+        const texture = feature.kind === "chest" ? TextureKey.Chest : TextureKey.Crate;
+        this.add.image(feature.x + feature.width / 2, feature.y + feature.height / 2, texture).setDepth(25);
         continue;
       }
       if (feature.kind === "barrel") {
@@ -270,11 +278,6 @@ export class BattleScene extends Phaser.Scene {
       }
       this.createRuin(feature.x, feature.y, feature.width, feature.height);
     }
-
-    this.add.image(690, 100, TextureKey.Chest).setDepth(25);
-    this.add.image(1_520, 940, TextureKey.Crate).setDepth(25);
-    this.add.image(1_565, 910, TextureKey.Crate).setDepth(25);
-    this.add.image(630, 780, TextureKey.Crate).setDepth(25);
   }
 
   private createRuin(x: number, y: number, width: number, height: number) {
@@ -302,42 +305,90 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private createStormLayer() {
-    this.stormSea = this.add.tileSprite(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, WORLD_WIDTH, WORLD_HEIGHT, TextureKey.StormSea);
-    this.stormSea.setDepth(88);
-    this.stormSea.setAlpha(0.9);
     this.stormSeaMaskShape = this.make.graphics({ x: 0, y: 0 }, false);
     this.stormSeaMask = this.stormSeaMaskShape.createGeometryMask();
     this.stormSeaMask.setInvertAlpha(true);
+
+    this.stormBackdrop = this.add.graphics();
+    this.stormBackdrop.setDepth(86);
+    this.stormBackdrop.setMask(this.stormSeaMask);
+
+    this.stormSea = this.add.tileSprite(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, WORLD_WIDTH, WORLD_HEIGHT, TextureKey.StormSea);
+    this.stormSea.setDepth(88);
+    this.stormSea.setAlpha(STORM_EDGE_PROFILE.outsideTextureAlpha);
     this.stormSea.setMask(this.stormSeaMask);
 
     this.stormLayer = this.add.graphics();
     this.stormLayer.setDepth(91);
-    for (let index = 0; index < 12; index += 1) {
+    for (let index = 0; index < STORM_EDGE_PROFILE.spriteCount; index += 1) {
       const edge = this.add.sprite(0, 0, TextureKey.StormEdge);
       edge.play(TextureKey.StormEdge);
       edge.setDepth(93);
-      edge.setAlpha(0.92);
+      edge.setAlpha(0.34);
       this.stormEdgeSprites.push(edge);
     }
   }
 
   private renderStorm() {
+    const timeMs = this.time.now;
     this.stormLayer.clear();
-    this.stormSea.tilePositionX += 0.1;
-    this.stormSea.tilePositionY -= 0.06;
-    this.stormSea.setAlpha(0.52 + Math.abs(Math.sin(this.time.now / 1_000)) * 0.08);
+    this.stormBackdrop.clear();
+    this.stormSea.tilePositionX += 0.12;
+    this.stormSea.tilePositionY -= 0.07;
+    this.stormSea.setAlpha(STORM_EDGE_PROFILE.outsideTextureAlpha + Math.abs(Math.sin(timeMs / 1_100)) * 0.03);
 
     this.stormSeaMaskShape.clear();
     this.stormSeaMaskShape.fillStyle(0xffffff, 1);
     this.stormSeaMaskShape.fillCircle(this.state.storm.centerX, this.state.storm.centerY, this.state.storm.radius);
 
-    const pulse = 0.35 + Math.abs(Math.sin(this.time.now / 190)) * 0.4;
-    const points = this.buildStormEdgePoints(56, 0);
-    this.drawStormPolyline(points, 30, 0x5b20b2, 0.22 + pulse * 0.1);
-    this.drawStormPolyline(points, 16, 0x9b55ff, 0.28 + pulse * 0.18);
-    this.drawStormPolyline(points, 7, 0xf4ecff, 0.78 + pulse * 0.18);
-    this.drawStormPolyline(this.buildStormEdgePoints(56, 37), 3, 0xffffff, 0.9);
-    this.stormLayer.lineStyle(2, 0xffffff, 0.32);
+    this.drawStormOutside(timeMs);
+
+    const pulse = 0.32 + Math.abs(Math.sin(timeMs / 260)) * 0.28;
+    const mainPoints = buildStormEdgePoints({
+      centerX: this.state.storm.centerX,
+      centerY: this.state.storm.centerY,
+      radius: this.state.storm.radius,
+      count: STORM_EDGE_PROFILE.edgePointCount,
+      seedOffset: 0,
+      timeMs
+    });
+    const secondaryPoints = buildStormEdgePoints({
+      centerX: this.state.storm.centerX,
+      centerY: this.state.storm.centerY,
+      radius: this.state.storm.radius + 5,
+      count: STORM_EDGE_PROFILE.edgePointCount,
+      seedOffset: 37,
+      timeMs
+    });
+
+    this.drawStormPolyline(mainPoints, STORM_EDGE_PROFILE.outerAuraWidth, 0x4a1598, 0.12 + pulse * 0.08);
+    this.drawStormPolyline(secondaryPoints, STORM_EDGE_PROFILE.midAuraWidth, 0x8040d8, 0.14 + pulse * 0.1);
+    this.drawStormPolyline(mainPoints, STORM_EDGE_PROFILE.brightAuraWidth, 0xb985ff, 0.2 + pulse * 0.12);
+    this.drawStormPolyline(secondaryPoints, STORM_EDGE_PROFILE.coreWidth, 0xffedff, 0.56 + pulse * 0.14);
+    this.drawStormPolyline(
+      buildStormEdgePoints({
+        centerX: this.state.storm.centerX,
+        centerY: this.state.storm.centerY,
+        radius: this.state.storm.radius - 9,
+        count: STORM_EDGE_PROFILE.edgePointCount,
+        seedOffset: 71,
+        timeMs
+      }),
+      STORM_EDGE_PROFILE.traceWidth,
+      0xffffff,
+      0.38 + pulse * 0.1
+    );
+    this.drawStormLightningBranches(
+      buildStormLightningBranches({
+        centerX: this.state.storm.centerX,
+        centerY: this.state.storm.centerY,
+        radius: this.state.storm.radius,
+        count: STORM_EDGE_PROFILE.branchCount,
+        timeMs
+      }),
+      pulse
+    );
+    this.stormLayer.lineStyle(1, 0xffffff, 0.12);
     this.stormLayer.strokeCircle(this.state.storm.centerX, this.state.storm.centerY, this.state.storm.radius - 5);
 
     for (let index = 0; index < this.stormEdgeSprites.length; index += 1) {
@@ -345,36 +396,36 @@ export class BattleScene extends Phaser.Scene {
       if (!edge) {
         continue;
       }
-      const angle = index * ((Math.PI * 2) / this.stormEdgeSprites.length) + Math.sin(this.time.now / 920 + index) * 0.035;
-      const radius = this.state.storm.radius + 6 + Math.sin(this.time.now / 250 + index * 1.7) * 6;
+      const angle =
+        index * ((Math.PI * 2) / this.stormEdgeSprites.length) +
+        Math.sin(timeMs / 1_100 + index) * 0.026;
+      const radius = this.state.storm.radius + 1 + Math.sin(timeMs / 360 + index * 1.7) * 4;
       edge.setPosition(
         this.state.storm.centerX + Math.cos(angle) * radius,
         this.state.storm.centerY + Math.sin(angle) * radius
       );
       edge.setRotation(angle + Math.PI / 2);
-      edge.setScale(0.78 + (index % 4) * 0.08);
-      edge.setAlpha(0.48 + Math.abs(Math.sin(this.time.now / 180 + index)) * 0.46);
+      edge.setScale(0.62 + (index % 4) * 0.07);
+      edge.setAlpha(0.14 + Math.abs(Math.sin(timeMs / 260 + index)) * 0.18);
     }
   }
 
-  private buildStormEdgePoints(count: number, seedOffset: number) {
-    const points: { x: number; y: number }[] = [];
-    const step = Math.floor(this.time.now / 150);
-    for (let index = 0; index <= count; index += 1) {
-      const angle = (index / count) * Math.PI * 2;
-      const jitter =
-        Math.sin(index * 12.9898 + step * 0.87 + seedOffset) * 11 +
-        Math.sin(index * 4.31 + step * 1.41 + seedOffset) * 6;
-      const radius = this.state.storm.radius + jitter;
-      points.push({
-        x: this.state.storm.centerX + Math.cos(angle) * radius,
-        y: this.state.storm.centerY + Math.sin(angle) * radius
-      });
+  private drawStormOutside(timeMs: number) {
+    this.stormBackdrop.fillStyle(STORM_EDGE_PROFILE.outsideFillColor, STORM_EDGE_PROFILE.outsideFillAlpha);
+    this.stormBackdrop.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+    this.stormBackdrop.fillStyle(0x190237, 0.08);
+    this.stormBackdrop.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+
+    for (let index = 0; index < 12; index += 1) {
+      const y = ((index * 131 + timeMs * 0.006) % (WORLD_HEIGHT + 220)) - 110;
+      const x = ((index * 197 + timeMs * 0.009) % (WORLD_WIDTH + 300)) - 150;
+      const width = 260 + (index % 5) * 86;
+      this.stormBackdrop.fillStyle(index % 2 === 0 ? 0x8e53d6 : 0x2a0b5c, 0.045);
+      this.stormBackdrop.fillRoundedRect(x, y, width, 26 + (index % 3) * 13, 18);
     }
-    return points;
   }
 
-  private drawStormPolyline(points: { x: number; y: number }[], width: number, color: number, alpha: number) {
+  private drawStormPolyline(points: StormVisualPoint[], width: number, color: number, alpha: number) {
     if (points.length < 2) {
       return;
     }
@@ -388,6 +439,36 @@ export class BattleScene extends Phaser.Scene {
       }
     }
     this.stormLayer.closePath();
+    this.stormLayer.strokePath();
+  }
+
+  private drawStormLightningBranches(branches: StormVisualPoint[][], pulse: number) {
+    for (let index = 0; index < branches.length; index += 1) {
+      const branch = branches[index];
+      if (!branch || branch.length < 2) {
+        continue;
+      }
+      this.drawStormOpenPath(branch, 4, 0x8b46dd, 0.08 + pulse * 0.06);
+      this.drawStormOpenPath(branch, 1.5, 0xf4dcff, 0.24 + pulse * 0.1);
+      if (index % 4 === 0) {
+        this.drawStormOpenPath(branch.slice(0, 3), 1, 0xffffff, 0.32);
+      }
+    }
+  }
+
+  private drawStormOpenPath(points: StormVisualPoint[], width: number, color: number, alpha: number) {
+    if (points.length < 2) {
+      return;
+    }
+    this.stormLayer.lineStyle(width, color, alpha);
+    this.stormLayer.beginPath();
+    this.stormLayer.moveTo(points[0]?.x ?? 0, points[0]?.y ?? 0);
+    for (let index = 1; index < points.length; index += 1) {
+      const point = points[index];
+      if (point) {
+        this.stormLayer.lineTo(point.x, point.y);
+      }
+    }
     this.stormLayer.strokePath();
   }
 

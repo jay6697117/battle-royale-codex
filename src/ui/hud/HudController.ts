@@ -2,6 +2,7 @@ import { WORLD_HEIGHT, WORLD_WIDTH } from "../../game/content/map";
 import type { EntityState, GameState } from "../../game/simulation/state";
 
 export class HudController {
+  private activeTooltipSlot: number | null = null;
   private root: HTMLElement;
   private lastHtml = "";
   private lastSnapshot = "";
@@ -11,6 +12,10 @@ export class HudController {
       throw new Error("HUD root is missing");
     }
     this.root = root;
+    this.root.addEventListener("pointerdown", (event) => this.handleSlotPointerDown(event));
+    this.root.addEventListener("click", (event) => this.handleSlotClick(event));
+    document.addEventListener("pointerdown", (event) => this.handleOutsidePointerDown(event));
+    document.addEventListener("pointermove", (event) => this.handlePointerMove(event));
   }
 
   update(state: GameState, entities: EntityState[] = Object.values(state.entities)) {
@@ -60,11 +65,31 @@ export class HudController {
         <button type="button">☺</button>
       </div>
       <div class="inventory ${hudOcclusion.inventory ? "is-occluding" : ""}">
-        ${this.renderSlot(1, "weapon-pistol", state.inventory.pistolAmmo, state.inventory.selectedSlot)}
-        ${this.renderSlot(2, "weapon-shotgun", state.inventory.shotgunAmmo, state.inventory.selectedSlot)}
-        ${this.renderSlot(3, "weapon-rifle", state.inventory.rifleAmmo, state.inventory.selectedSlot)}
-        ${this.renderSlot(4, "item-shield", state.inventory.shieldPotions, state.inventory.selectedSlot)}
-        ${this.renderSlot(5, "item-medkit", state.inventory.medkits, state.inventory.selectedSlot)}
+        ${this.renderSlot(1, "weapon-pistol", state.inventory.pistolAmmo, state.inventory.selectedSlot, {
+          title: "手枪",
+          purpose: "稳定的基础武器，适合中近距离持续输出。",
+          usage: "按 1 选择，瞄准敌人后按住左键射击。"
+        })}
+        ${this.renderSlot(2, "weapon-shotgun", state.inventory.shotgunAmmo, state.inventory.selectedSlot, {
+          title: "霰弹枪",
+          purpose: "近距离爆发伤害高，贴近敌人时更有效。",
+          usage: "按 2 选择，靠近目标后按住左键射击。"
+        })}
+        ${this.renderSlot(3, "weapon-rifle", state.inventory.rifleAmmo, state.inventory.selectedSlot, {
+          title: "步枪",
+          purpose: "射程更远、单发伤害更高，适合远距离压制。",
+          usage: "按 3 选择，瞄准目标后按住左键射击。"
+        })}
+        ${this.renderSlot(4, "item-shield", state.inventory.shieldPotions, state.inventory.selectedSlot, {
+          title: "护盾药水",
+          purpose: "恢复 35 点护盾，护盾最多 60 点。",
+          usage: "按 4 选择，再按空格或右键使用。"
+        })}
+        ${this.renderSlot(5, "item-medkit", state.inventory.medkits, state.inventory.selectedSlot, {
+          title: "医疗包",
+          purpose: "恢复 38 点生命值，生命值不会超过上限。",
+          usage: "按 5 选择，再按空格或右键使用。"
+        })}
       </div>
       ${state.phase !== "playing" ? this.renderEndState(state.phase) : ""}
       <div class="player-vitals ${hudOcclusion.playerVitals ? "is-occluding" : ""}">
@@ -94,14 +119,63 @@ export class HudController {
     `;
   }
 
-  private renderSlot(index: number, slotClass: string, count: number, selectedSlot: number) {
+  private renderSlot(
+    index: number,
+    slotClass: string,
+    count: number,
+    selectedSlot: number,
+    tooltip: { title: string; purpose: string; usage: string }
+  ) {
     return `
-      <div class="inventory-slot ${slotClass} ${selectedSlot === index ? "active" : ""}">
+      <button class="inventory-slot ${slotClass} ${selectedSlot === index ? "active" : ""} ${this.activeTooltipSlot === index ? "show-tooltip" : ""}" type="button" data-slot="${index}" aria-label="${tooltip.title}：${tooltip.purpose}${tooltip.usage}" aria-describedby="slot-${index}-tooltip">
         <span class="slot-key">${index}</span>
-        <span class="slot-icon"></span>
+        <span class="slot-icon" aria-hidden="true"></span>
         <strong>${count}</strong>
-      </div>
+        <span class="slot-tooltip" id="slot-${index}-tooltip" role="tooltip">
+          <b>${tooltip.title}</b>
+          <span>${tooltip.purpose}</span>
+          <em>${tooltip.usage}</em>
+        </span>
+      </button>
     `;
+  }
+
+  private handleSlotPointerDown(event: PointerEvent) {
+    const slot = (event.target as HTMLElement).closest<HTMLButtonElement>(".inventory-slot");
+    if (slot) {
+      event.stopPropagation();
+    }
+  }
+
+  private handleSlotClick(event: MouseEvent) {
+    const slot = (event.target as HTMLElement).closest<HTMLButtonElement>(".inventory-slot");
+    if (!slot) {
+      return;
+    }
+    event.stopPropagation();
+    this.activeTooltipSlot = Number(slot.dataset.slot);
+    this.lastSnapshot = "";
+  }
+
+  private handleOutsidePointerDown(event: PointerEvent) {
+    if (!this.activeTooltipSlot || this.root.contains(event.target as Node)) {
+      return;
+    }
+    this.activeTooltipSlot = null;
+    this.lastSnapshot = "";
+  }
+
+  private handlePointerMove(event: PointerEvent) {
+    if (event.pointerType === "touch") {
+      return;
+    }
+    const slot = (event.target as HTMLElement).closest<HTMLButtonElement>(".inventory-slot");
+    const nextSlot = slot ? Number(slot.dataset.slot) : null;
+    if (this.activeTooltipSlot === nextSlot) {
+      return;
+    }
+    this.activeTooltipSlot = nextSlot;
+    this.lastSnapshot = "";
   }
 
   private renderMiniDot(entity: EntityState) {

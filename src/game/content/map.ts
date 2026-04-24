@@ -15,7 +15,7 @@ export interface CircleZone {
 
 export interface MapFeature {
   id: string;
-  kind: "wall" | "bush" | "crate" | "barrel" | "water" | "ruin";
+  kind: "wall" | "bush" | "crate" | "chest" | "barrel" | "water" | "ruin";
   x: number;
   y: number;
   width: number;
@@ -35,7 +35,7 @@ export const WORLD_HEIGHT = 1080;
 export const WORLD_CENTER_X = WORLD_WIDTH / 2;
 export const WORLD_CENTER_Y = WORLD_HEIGHT / 2;
 
-export const SOLID_ZONES: RectZone[] = [
+export const STRUCTURE_ZONES: RectZone[] = [
   { id: "west_ruin_1", x: 265, y: 405, width: 170, height: 54 },
   { id: "west_ruin_2", x: 298, y: 455, width: 54, height: 154 },
   { id: "southwest_water_wall", x: 455, y: 620, width: 280, height: 50 },
@@ -47,9 +47,17 @@ export const SOLID_ZONES: RectZone[] = [
   { id: "east_middle_wall", x: 1390, y: 420, width: 72, height: 50 },
   { id: "east_ruin", x: 1482, y: 688, width: 155, height: 54 },
   { id: "south_ruin", x: 1100, y: 835, width: 150, height: 56 },
-  { id: "south_column", x: 1165, y: 900, width: 54, height: 110 },
-  { id: "crate_stack", x: 1512, y: 925, width: 96, height: 78 }
+  { id: "south_column", x: 1165, y: 900, width: 54, height: 110 }
 ];
+
+export const PROP_SOLID_ZONES: RectZone[] = [
+  { id: "crate_stack_left", x: 1488, y: 908, width: 64, height: 64 },
+  { id: "crate_stack_right", x: 1533, y: 878, width: 64, height: 64 },
+  { id: "crate_loot", x: 598, y: 748, width: 64, height: 64 },
+  { id: "north_chest", x: 658, y: 68, width: 64, height: 64 }
+];
+
+export const SOLID_ZONES: RectZone[] = [...STRUCTURE_ZONES, ...PROP_SOLID_ZONES];
 
 export const OBSTACLES = SOLID_ZONES;
 
@@ -73,15 +81,14 @@ export const FOLIAGE_ZONES: RectZone[] = [
 ];
 
 export const MAP_FEATURES: MapFeature[] = [
-  ...SOLID_ZONES.map((zone) => ({
+  ...STRUCTURE_ZONES.map((zone) => ({ ...zone, kind: "wall" as const })),
+  ...PROP_SOLID_ZONES.map((zone) => ({
     ...zone,
-    kind: zone.id.includes("crate") ? ("crate" as const) : ("wall" as const)
+    kind: zone.id.includes("chest") ? ("chest" as const) : ("crate" as const)
   })),
   ...WATER_ZONES.map((zone) => ({ ...zone, kind: "water" as const })),
   ...FOLIAGE_ZONES.map((zone) => ({ ...zone, kind: "bush" as const })),
-  { id: "barrel_west", kind: "barrel", x: 365, y: 505, width: 42, height: 42 },
-  { id: "crate_loot", kind: "crate", x: 630, y: 760, width: 52, height: 52 },
-  { id: "north_chest", kind: "crate", x: 690, y: 72, width: 54, height: 54 }
+  { id: "barrel_west", kind: "barrel", x: 365, y: 505, width: 42, height: 42 }
 ];
 
 export const clampToWorld = (x: number, y: number, radius: number) => ({

@@ -69,6 +69,9 @@ interface ControlKeys {
 }
 
 const TILE_SIZE = 32;
+const HUD_UPDATE_INTERVAL_MS = 100;
+const STORM_GRAPHICS_UPDATE_INTERVAL_MS = 83;
+const STORM_RADIUS_REDRAW_THRESHOLD = 1.5;
 
 export class BattleScene extends Phaser.Scene {
   private state!: GameState;
@@ -87,6 +90,9 @@ export class BattleScene extends Phaser.Scene {
   private matchStarted = false;
   private suppressPointerInput = false;
   private lastEventId = 0;
+  private lastHudUpdateMs = Number.NEGATIVE_INFINITY;
+  private lastStormGraphicsUpdateMs = Number.NEGATIVE_INFINITY;
+  private lastStormGraphicsRadius = Number.NaN;
 
   constructor() {
     super("BattleScene");
@@ -121,17 +127,17 @@ export class BattleScene extends Phaser.Scene {
     window.__battleState = this.state;
   }
 
-  update(_time: number, delta: number) {
+  update(time: number, delta: number) {
     const input = this.collectInput();
     if (this.matchStarted) {
       stepSimulation(this.state, input, Math.min(delta, 16.67));
     }
     const entities = Object.values(this.state.entities);
     window.__battleState = this.state;
-    this.renderStorm();
+    this.renderStorm(time);
     this.renderEntities(entities);
     this.renderEvents();
-    this.hud.update(this.state, entities, !this.matchStarted);
+    this.updateHud(entities, time);
   }
 
   private createInput() {
@@ -231,7 +237,7 @@ export class BattleScene extends Phaser.Scene {
     }
     this.matchStarted = true;
     this.suppressPointerInput = true;
-    this.hud.update(this.state, Object.values(this.state.entities), false);
+    this.forceHudUpdate(false);
   }
 
   private nextWeaponSlot(currentSlot: number) {
@@ -242,6 +248,19 @@ export class BattleScene extends Phaser.Scene {
       return 3;
     }
     return 1;
+  }
+
+  private updateHud(entities: EntityState[], timeMs: number) {
+    if (timeMs - this.lastHudUpdateMs < HUD_UPDATE_INTERVAL_MS) {
+      return;
+    }
+    this.lastHudUpdateMs = timeMs;
+    this.hud.update(this.state, entities, !this.matchStarted);
+  }
+
+  private forceHudUpdate(showStartNotice: boolean) {
+    this.lastHudUpdateMs = this.time.now;
+    this.hud.update(this.state, Object.values(this.state.entities), showStartNotice);
   }
 
   private restartMatch() {
@@ -255,6 +274,10 @@ export class BattleScene extends Phaser.Scene {
     this.matchStarted = false;
     this.suppressPointerInput = false;
     this.lastEventId = 0;
+    this.lastHudUpdateMs = Number.NEGATIVE_INFINITY;
+    this.lastStormGraphicsUpdateMs = Number.NEGATIVE_INFINITY;
+    this.lastStormGraphicsRadius = Number.NaN;
+    this.forceHudUpdate(true);
   }
 
   private createAnimations() {
@@ -376,13 +399,30 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
-  private renderStorm() {
-    const timeMs = this.time.now;
-    this.stormLayer.clear();
-    this.stormBackdrop.clear();
+  private renderStorm(timeMs: number) {
     this.stormSea.tilePositionX += 0.12;
     this.stormSea.tilePositionY -= 0.07;
     this.stormSea.setAlpha(STORM_EDGE_PROFILE.outsideTextureAlpha + Math.abs(Math.sin(timeMs / 1_100)) * 0.03);
+
+    if (this.shouldRedrawStormGraphics(timeMs)) {
+      this.redrawStormGraphics(timeMs);
+    }
+
+    this.updateStormEdgeSprites(timeMs);
+  }
+
+  private shouldRedrawStormGraphics(timeMs: number) {
+    return (
+      timeMs - this.lastStormGraphicsUpdateMs >= STORM_GRAPHICS_UPDATE_INTERVAL_MS ||
+      Math.abs(this.state.storm.radius - this.lastStormGraphicsRadius) >= STORM_RADIUS_REDRAW_THRESHOLD
+    );
+  }
+
+  private redrawStormGraphics(timeMs: number) {
+    this.lastStormGraphicsUpdateMs = timeMs;
+    this.lastStormGraphicsRadius = this.state.storm.radius;
+    this.stormLayer.clear();
+    this.stormBackdrop.clear();
 
     this.stormSeaMaskShape.clear();
     this.stormSeaMaskShape.fillStyle(0xffffff, 1);
@@ -437,7 +477,9 @@ export class BattleScene extends Phaser.Scene {
     );
     this.stormLayer.lineStyle(1, 0xffffff, 0.12);
     this.stormLayer.strokeCircle(this.state.storm.centerX, this.state.storm.centerY, this.state.storm.radius - 5);
+  }
 
+  private updateStormEdgeSprites(timeMs: number) {
     for (let index = 0; index < this.stormEdgeSprites.length; index += 1) {
       const edge = this.stormEdgeSprites[index];
       if (!edge) {

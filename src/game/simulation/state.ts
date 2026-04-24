@@ -149,7 +149,7 @@ interface PveDefinition {
 const PVE_DEFINITIONS: Record<PveType, PveDefinition> = {
   bat: {
     radius: 18,
-    health: 48,
+    health: 12,
     speed: 150,
     touchDamage: 3,
     touchCooldownMs: 1_050,
@@ -158,7 +158,7 @@ const PVE_DEFINITIONS: Record<PveType, PveDefinition> = {
   },
   slime: {
     radius: 20,
-    health: 70,
+    health: 17.5,
     speed: 95,
     touchDamage: 5,
     touchCooldownMs: 1_250,
@@ -167,7 +167,7 @@ const PVE_DEFINITIONS: Record<PveType, PveDefinition> = {
   },
   wolf: {
     radius: 18,
-    health: 62,
+    health: 15.5,
     speed: 180,
     touchDamage: 4,
     touchCooldownMs: 920,
@@ -176,7 +176,7 @@ const PVE_DEFINITIONS: Record<PveType, PveDefinition> = {
   },
   spitter: {
     radius: 21,
-    health: 85,
+    health: 21.25,
     speed: 105,
     touchDamage: 7,
     touchCooldownMs: 1_350,
@@ -185,7 +185,7 @@ const PVE_DEFINITIONS: Record<PveType, PveDefinition> = {
   },
   golem: {
     radius: 25,
-    health: 150,
+    health: 37.5,
     speed: 65,
     touchDamage: 11,
     touchCooldownMs: 1_600,

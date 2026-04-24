@@ -71,6 +71,7 @@ export class HudController {
         <button type="button">◈</button>
         <button type="button">☺</button>
       </div>
+      <div class="inventory-current ${hudOcclusion.inventory ? "is-occluding" : ""}" aria-live="polite">当前：<b>${this.slotLabel(state.inventory.selectedSlot)}</b></div>
       <div class="inventory ${hudOcclusion.inventory ? "is-occluding" : ""}">
         ${this.renderSlot(1, "weapon-pistol", state.inventory.pistolAmmo, state.inventory.selectedSlot, {
           title: "手枪",
@@ -124,6 +125,22 @@ export class HudController {
         </div>
       </div>
     `;
+  }
+
+  private slotLabel(selectedSlot: number) {
+    if (selectedSlot === 1) {
+      return "手枪";
+    }
+    if (selectedSlot === 2) {
+      return "霰弹枪";
+    }
+    if (selectedSlot === 3) {
+      return "步枪";
+    }
+    if (selectedSlot === 4) {
+      return "护盾药水";
+    }
+    return "医疗包";
   }
 
   private renderSlot(

@@ -23,7 +23,7 @@ export interface MapFeature {
 }
 
 export type MovementBlocker = "solid" | "water";
-export type ProjectileBlocker = "solid" | "foliage";
+export type ProjectileBlocker = "solid";
 
 export interface CollisionEntity {
   kind: string;
@@ -54,8 +54,12 @@ export const SOLID_ZONES: RectZone[] = [
 export const OBSTACLES = SOLID_ZONES;
 
 export const WATER_ZONES: RectZone[] = [
-  { id: "southwest_pond", x: 295, y: 660, width: 260, height: 235 },
-  { id: "north_pond", x: 1110, y: 145, width: 230, height: 165 }
+  { id: "southwest_pond_top", x: 275, y: 640, width: 310, height: 56 },
+  { id: "southwest_pond_left", x: 270, y: 696, width: 168, height: 139 },
+  { id: "southwest_pond_lower", x: 270, y: 835, width: 245, height: 130 },
+  { id: "north_pond_cap", x: 1165, y: 92, width: 90, height: 33 },
+  { id: "north_pond_main", x: 1105, y: 125, width: 253, height: 120 },
+  { id: "north_pond_lower", x: 1105, y: 245, width: 175, height: 75 }
 ];
 
 export const FOLIAGE_ZONES: RectZone[] = [
@@ -119,5 +123,4 @@ export const collidesForMovement = (
 };
 
 export const collidesForProjectile = (x: number, y: number, radius: number): boolean =>
-  SOLID_ZONES.some((zone) => intersectsRect(x, y, radius, zone)) ||
-  FOLIAGE_ZONES.some((zone) => intersectsRect(x, y, radius, zone));
+  SOLID_ZONES.some((zone) => intersectsRect(x, y, radius, zone));

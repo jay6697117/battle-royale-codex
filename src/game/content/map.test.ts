@@ -9,9 +9,16 @@ describe("map collision semantics", () => {
     expect(collidesForMovement({ kind: "pve", pveType: "bat" }, 340, 720, 18)).toBe(false);
   });
 
-  it("lets bullets cross ponds but blocks them on foliage and solid cover", () => {
+  it("keeps pond collision aligned to the visible L-shaped water", () => {
+    expect(collidesForMovement({ kind: "player" }, 340, 720, 17)).toBe(true);
+    expect(collidesForMovement({ kind: "player" }, 520, 760, 17)).toBe(false);
+    expect(collidesForMovement({ kind: "player" }, 500, 880, 17)).toBe(true);
+    expect(collidesForMovement({ kind: "player" }, 1320, 280, 17)).toBe(false);
+  });
+
+  it("lets bullets cross ponds and foliage but blocks them on solid cover", () => {
     expect(collidesForProjectile(340, 720, 5)).toBe(false);
-    expect(collidesForProjectile(125, 520, 5)).toBe(true);
+    expect(collidesForProjectile(125, 520, 5)).toBe(false);
     expect(collidesForProjectile(710, 390, 5)).toBe(true);
   });
 

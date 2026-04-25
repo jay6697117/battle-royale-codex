@@ -249,23 +249,34 @@ export class HudController {
           <em>先看清键位和道具，准备好再开战。</em>
         </div>
         <div class="start-notice-grid">
-          <section>
-            <h2>电脑操作</h2>
-            <p><b>WASD / 方向键</b><span>移动角色</span></p>
-            <p><b>鼠标</b><span>瞄准方向</span></p>
-            <p><b>左键</b><span>当前槽位是武器时射击</span></p>
-            <p><b>E</b><span>循环切换全部武器和道具</span></p>
-            <p><b>1 - 5</b><span>直接选择武器或道具槽</span></p>
-            <p><b>空格 / 右键</b><span>当前槽位是道具时使用</span></p>
+          <section class="start-notice-controls">
+            <div class="start-notice-control-set start-notice-control-desktop">
+              <h2>电脑操作</h2>
+              <p><b>WASD / 方向键</b><span>移动角色</span></p>
+              <p><b>鼠标</b><span>瞄准方向</span></p>
+              <p><b>左键</b><span>武器槽位射击</span></p>
+              <p><b>E</b><span>循环切换武器和道具</span></p>
+              <p><b>1 - 5</b><span>直接选择槽位</span></p>
+              <p><b>空格 / 右键</b><span>道具槽位使用</span></p>
+            </div>
+            <div class="start-notice-control-set start-notice-control-touch">
+              <h2>手机操作</h2>
+              <p><b>左下摇杆</b><span>拖动控制移动</span></p>
+              <p><b>右下切换</b><span>循环切换武器和道具</span></p>
+              <p><b>右下开火</b><span>武器槽位射击</span></p>
+              <p><b>右下开火</b><span>道具槽位使用</span></p>
+              <p><b>库存图标</b><span>点击查看槽位用途</span></p>
+              <p><b>金币 / 经验</b><span>拾取奖励并提升战力</span></p>
+            </div>
           </section>
-          <section>
-            <h2>手机操作</h2>
-            <p><b>左下摇杆</b><span>拖动控制角色移动</span></p>
-            <p><b>右下切换</b><span>循环切换武器和道具</span></p>
-            <p><b>右下开火</b><span>当前槽位是武器时射击</span></p>
-            <p><b>右下开火</b><span>当前槽位是道具时使用道具</span></p>
-            <p><b>槽位提示</b><span>点库存图标可查看每个武器和道具用途</span></p>
-            <p><b>金币 / 经验</b><span>击败怪物和拾取奖励，提升战斗能力</span></p>
+          <section class="start-notice-items">
+            <h2>武器道具说明</h2>
+            <p><b>手枪</b><span>稳定基础武器，中近距离补伤害。</span></p>
+            <p><b>霰弹枪</b><span>近距离爆发，贴近敌人更有效。</span></p>
+            <p><b>步枪</b><span>射程更远，适合持续压制。</span></p>
+            <p><b>护盾药水</b><span>回复护盾，先抗住伤害。</span></p>
+            <p><b>医疗包</b><span>回复生命，安全时使用。</span></p>
+            <p><b>金币 / 经验</b><span>击败怪物或拾取奖励，升级强化伤害。</span></p>
           </section>
         </div>
         <button class="start-notice-button" type="button">开始游戏 Enter</button>

@@ -341,10 +341,19 @@ export class BattleScene extends Phaser.Scene {
       slotCycleQueued: false
     };
 
+    root.addEventListener("contextmenu", (event) => event.preventDefault());
     joystick.addEventListener("pointerdown", (event) => this.handleMobileJoystickDown(event));
     joystick.addEventListener("pointermove", (event) => this.handleMobileJoystickMove(event));
     joystick.addEventListener("pointerup", (event) => this.handleMobileJoystickUp(event));
     joystick.addEventListener("pointercancel", (event) => this.handleMobileJoystickUp(event));
+    window.addEventListener("pointerup", (event) => this.handleMobilePointerRelease(event), true);
+    window.addEventListener("pointercancel", (event) => this.handleMobilePointerRelease(event), true);
+    window.addEventListener("blur", () => this.resetMobileControls());
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        this.resetMobileControls();
+      }
+    });
     for (const button of root.querySelectorAll<HTMLButtonElement>(".mobile-button")) {
       button.addEventListener("pointerdown", (event) => this.handleMobileButtonDown(event));
       button.addEventListener("pointerup", (event) => this.handleMobileButtonUp(event));
@@ -439,10 +448,31 @@ export class BattleScene extends Phaser.Scene {
     }
     event.preventDefault();
     event.stopPropagation();
+    this.releaseMobileButtonPointer(action, event.pointerId);
+  }
+
+  private handleMobilePointerRelease(event: PointerEvent) {
+    const controls = this.mobileControls;
+    if (!controls) {
+      return;
+    }
+    for (const [action, pointerId] of Object.entries(controls.buttonPointerIds) as [MobileButtonId, number][]) {
+      if (pointerId === event.pointerId) {
+        this.releaseMobileButtonPointer(action, event.pointerId);
+      }
+    }
+  }
+
+  private releaseMobileButtonPointer(action: MobileButtonId, pointerId: number) {
+    const controls = this.mobileControls;
+    if (!controls || controls.buttonPointerIds[action] !== pointerId) {
+      return;
+    }
     controls.buttonPointerIds[action] = undefined;
-    button.classList.remove("is-pressed");
+    const button = controls.root.querySelector<HTMLButtonElement>(`[data-mobile-action="${action}"]`);
+    button?.classList.remove("is-pressed");
     if (action === "fire") {
-      controls.firePointerIds.delete(event.pointerId);
+      controls.firePointerIds.delete(pointerId);
     }
   }
 

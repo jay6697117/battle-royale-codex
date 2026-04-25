@@ -31,6 +31,9 @@ def ensure_dirs() -> None:
         "characters/mage",
         "enemies/bat",
         "enemies/slime",
+        "enemies/wolf",
+        "enemies/spitter",
+        "enemies/golem",
         "pickups",
         "props",
         "fx",
@@ -49,6 +52,64 @@ def save(image: Image.Image, relative_path: str) -> None:
 def draw_pixel_plus(draw: ImageDraw.ImageDraw, x: int, y: int, color: Color) -> None:
     draw.rectangle((x + 3, y, x + 5, y + 8), fill=color)
     draw.rectangle((x, y + 3, x + 8, y + 5), fill=color)
+
+
+def mix(color: Color, target: Color, amount: float) -> Color:
+    return (
+        int(color[0] + (target[0] - color[0]) * amount),
+        int(color[1] + (target[1] - color[1]) * amount),
+        int(color[2] + (target[2] - color[2]) * amount),
+        color[3],
+    )
+
+
+def lighten(color: Color, amount: float) -> Color:
+    return mix(color, (255, 255, 255, color[3]), amount)
+
+
+def darken(color: Color, amount: float) -> Color:
+    return mix(color, (0, 0, 0, color[3]), amount)
+
+
+def tint_sprite_sheet(image: Image.Image, tint: Color, amount: float) -> Image.Image:
+    source = image.convert("RGBA")
+    overlay = Image.new("RGBA", source.size, tint)
+    tinted = Image.blend(source, overlay, amount)
+    tinted.putalpha(source.getchannel("A"))
+    return tinted
+
+
+def alpha(color: Color, value: int) -> Color:
+    return (color[0], color[1], color[2], value)
+
+
+def draw_soft_shadow(draw: ImageDraw.ImageDraw, cx: int, cy: int, width: int, height: int, opacity: int = 90) -> None:
+    draw.ellipse((cx - width // 2, cy - height // 2, cx + width // 2, cy + height // 2), fill=rgba("#08090a", opacity))
+    draw.ellipse((cx - width // 3, cy - height // 3, cx + width // 3, cy + height // 3), fill=rgba("#000000", min(140, opacity + 25)))
+
+
+def draw_vertical_gradient(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], top: Color, bottom: Color) -> None:
+    x1, y1, x2, y2 = box
+    height = max(1, y2 - y1)
+    for y in range(y1, y2 + 1):
+        amount = (y - y1) / height
+        color = mix(top, bottom, amount)
+        draw.line((x1, y, x2, y), fill=color)
+
+
+def draw_beveled_rect(
+    draw: ImageDraw.ImageDraw,
+    box: tuple[int, int, int, int],
+    fill: Color,
+    outline: Color,
+    radius: int = 3,
+) -> None:
+    x1, y1, x2, y2 = box
+    draw.rounded_rectangle(box, radius=radius, fill=outline)
+    inner = (x1 + 2, y1 + 2, x2 - 2, y2 - 2)
+    draw.rounded_rectangle(inner, radius=max(1, radius - 1), fill=fill)
+    draw.line((x1 + 4, y1 + 3, x2 - 4, y1 + 3), fill=lighten(fill, 0.34), width=1)
+    draw.line((x1 + 3, y2 - 3, x2 - 3, y2 - 3), fill=darken(fill, 0.28), width=1)
 
 
 def make_tilesheet(frame_count: int, draw_frame, frame_size: int = 32) -> Image.Image:
@@ -115,22 +176,46 @@ def generate_water_tiles() -> None:
 
 
 def generate_ruin_tiles() -> None:
-    colors = [rgba("#aab1a6"), rgba("#8b938b"), rgba("#c3c8bc"), rgba("#6c756f")]
+    base_palette = [rgba("#969f9a"), rgba("#7f8a86"), rgba("#b9bdb0"), rgba("#68726d")]
 
     def draw_frame(draw: ImageDraw.ImageDraw, index: int) -> None:
-        draw.rectangle((2, 3, 29, 29), fill=colors[index % 4])
-        draw.rectangle((2, 24, 29, 29), fill=rgba("#4d554f", 150))
-        draw.rectangle((2, 3, 29, 29), outline=rgba("#424a45"))
+        rng = random.Random(5_100 + index)
+        base = base_palette[index % len(base_palette)]
+        draw.rounded_rectangle((1, 3, 30, 29), radius=2, fill=darken(base, 0.32))
+        draw.rounded_rectangle((2, 2, 29, 27), radius=2, fill=base)
+        draw.line((4, 4, 27, 4), fill=lighten(base, 0.32), width=1)
+        draw.line((3, 26, 29, 26), fill=darken(base, 0.35), width=2)
+
+        for row in range(3):
+            y = 5 + row * 7 + (index + row) % 2
+            draw.line((3, y, 28, y), fill=darken(base, 0.22), width=1)
+            for col in range(2 + (row + index) % 2):
+                x = 8 + col * 10 + rng.randint(-2, 2)
+                draw.line((x, y, x + rng.randint(-1, 1), min(27, y + 6)), fill=darken(base, 0.27), width=1)
+
+        for _ in range(4):
+            x = rng.randint(5, 25)
+            y = rng.randint(6, 23)
+            draw.line((x, y, x + rng.randint(-4, 4), y + rng.randint(2, 6)), fill=rgba("#3f4844", rng.randint(120, 180)), width=1)
+
         if index % 3 == 0:
-            draw.line((2, 15, 29, 15), fill=rgba("#5d665f"), width=2)
+            draw.rectangle((4, 18, 28, 26), fill=rgba("#56605a", 120))
         if index % 3 == 1:
-            draw.line((15, 3, 15, 29), fill=rgba("#5d665f"), width=2)
+            draw.rectangle((18, 5, 27, 12), fill=rgba("#c8c9bd", 145))
         if index % 3 == 2:
-            draw.rectangle((19, 4, 28, 12), fill=rgba("#747d75"))
-            draw.rectangle((3, 20, 12, 28), fill=rgba("#d3d5c9"))
+            draw.rectangle((5, 20, 13, 27), fill=rgba("#d5d4c7", 140))
+            draw.line((19, 7, 28, 16), fill=rgba("#3f4844", 160), width=1)
+
+        for _ in range(3):
+            x = rng.randint(2, 28)
+            y = rng.randint(3, 27)
+            draw.line((x, y, x + rng.randint(-1, 2), y - rng.randint(2, 5)), fill=rgba("#477245", rng.randint(90, 145)), width=1)
+
         if index >= 8:
-            draw.rectangle((20, 3, 29, 9), fill=(0, 0, 0, 0))
-            draw.rectangle((2, 21, 9, 29), fill=(0, 0, 0, 0))
+            draw.rectangle((20, 2, 30, 9), fill=(0, 0, 0, 0))
+            draw.rectangle((1, 21, 9, 29), fill=(0, 0, 0, 0))
+            draw.line((18, 9, 25, 12), fill=rgba("#3f4844", 150), width=1)
+            draw.line((9, 20, 13, 27), fill=rgba("#3f4844", 150), width=1)
 
     save(make_tilesheet(12, draw_frame), "tiles/ruins-tiles.png")
 
@@ -165,52 +250,82 @@ def draw_character_frame(
     frame: int,
     animation: str,
 ) -> None:
-    cx = 48
     bob = int(math.sin(frame * 1.4) * 2) if animation in {"idle", "walk"} else 0
     step = int(math.sin(frame * 2.0) * 4) if animation == "walk" else 0
-    recoil = 5 if animation == "shoot" and frame in {1, 2} else 0
+    recoil = 6 if animation == "shoot" and frame in {1, 2} else 0
     hurt_shift = 3 if animation == "hurt" and frame % 2 else 0
     y = 50 + bob
+    x = 48 + hurt_shift
+    skin = rgba("#d9a772") if role != "mage" else rgba("#c8d7ff")
+    metal = rgba("#c2c6bc")
+    leather = rgba("#7d4f2b")
 
-    draw.ellipse((25, 70, 71, 82), fill=rgba("#0b0c0d", 90))
-    draw.rectangle((35 + hurt_shift, y - 24, 61 + hurt_shift, y + 10), fill=dark)
-    draw.rectangle((37 + hurt_shift, y - 27, 59 + hurt_shift, y + 6), fill=body)
-    draw.rectangle((31 + hurt_shift, y + 1 + step, 43 + hurt_shift, y + 24 + step), fill=dark)
-    draw.rectangle((53 + hurt_shift, y + 1 - step, 65 + hurt_shift, y + 24 - step), fill=dark)
-    draw.rectangle((39 + hurt_shift, y - 20, 57 + hurt_shift, y - 7), fill=rgba("#e1b783"))
-    draw.rectangle((41 + hurt_shift, y - 15, 45 + hurt_shift, y - 11), fill=rgba("#111111"))
-    draw.rectangle((52 + hurt_shift, y - 15, 56 + hurt_shift, y - 11), fill=rgba("#111111"))
-    draw.rectangle((34 + hurt_shift, y + 8, 45 + hurt_shift, y + 28), fill=body)
-    draw.rectangle((51 + hurt_shift, y + 8, 62 + hurt_shift, y + 28), fill=body)
+    draw_soft_shadow(draw, x, 76, 50, 15, 92)
+
+    left_leg = [(x - 15, y + 7 + step), (x - 5, y + 7 + step), (x - 3, y + 28 + step), (x - 16, y + 28 + step)]
+    right_leg = [(x + 5, y + 7 - step), (x + 15, y + 7 - step), (x + 16, y + 28 - step), (x + 3, y + 28 - step)]
+    draw.polygon(left_leg, fill=dark)
+    draw.polygon(right_leg, fill=darken(dark, 0.12))
+    draw.line((x - 14, y + 12 + step, x - 5, y + 12 + step), fill=lighten(body, 0.25), width=1)
+    draw.line((x + 5, y + 11 - step, x + 14, y + 11 - step), fill=lighten(body, 0.18), width=1)
+
+    draw.rounded_rectangle((x - 18, y - 25, x + 18, y + 11), radius=6, fill=darken(dark, 0.1))
+    draw.rounded_rectangle((x - 15, y - 28, x + 15, y + 7), radius=5, fill=body)
+    draw.polygon([(x - 15, y - 28), (x + 15, y - 28), (x + 10, y - 16), (x - 10, y - 16)], fill=lighten(body, 0.16))
+    draw.line((x - 12, y - 23, x + 11, y + 2), fill=darken(accent, 0.2), width=3)
+    draw.rectangle((x - 6, y - 3, x + 7, y + 2), fill=accent)
+    draw.line((x - 11, y + 5, x + 12, y + 5), fill=darken(body, 0.3), width=2)
+
+    draw.rounded_rectangle((x - 25, y - 21, x - 13, y + 6), radius=4, fill=darken(body, 0.18))
+    draw.rounded_rectangle((x + 13, y - 21, x + 25, y + 6), radius=4, fill=darken(body, 0.25))
+    draw.rectangle((x - 25, y - 1, x - 17, y + 16), fill=darken(dark, 0.05))
+    draw.rectangle((x + 17, y - 1, x + 25, y + 16), fill=darken(dark, 0.08))
+
+    draw.rounded_rectangle((x - 11, y - 23, x + 11, y - 7), radius=4, fill=skin)
+    draw.rectangle((x - 8, y - 16, x - 4, y - 12), fill=rgba("#111111"))
+    draw.rectangle((x + 4, y - 16, x + 8, y - 12), fill=rgba("#111111"))
+    draw.line((x - 5, y - 8, x + 5, y - 8), fill=darken(skin, 0.35), width=1)
 
     if role in {"rogue", "ninja"}:
-        draw.polygon([(31 + hurt_shift, y - 28), (48 + hurt_shift, y - 42), (66 + hurt_shift, y - 28)], fill=dark)
-        draw.rectangle((35 + hurt_shift, y - 29, 61 + hurt_shift, y - 21), fill=dark)
-        draw.rectangle((40 + hurt_shift, y - 21, 56 + hurt_shift, y - 17), fill=accent)
+        draw.polygon([(x - 18, y - 27), (x, y - 45), (x + 18, y - 27)], fill=darken(dark, 0.05))
+        draw.rectangle((x - 14, y - 28, x + 14, y - 21), fill=dark)
+        draw.rectangle((x - 9, y - 20, x + 9, y - 17), fill=accent)
+        draw.line((x - 18, y - 24, x + 18, y - 24), fill=lighten(accent, 0.22), width=1)
+        if role == "ninja":
+            draw.line((x - 29, y + 1, x - 6, y - 20), fill=metal, width=2)
+            draw.rectangle((x - 32, y + 2, x - 25, y + 5), fill=rgba("#111316"))
     elif role == "samurai":
-        draw.rectangle((31 + hurt_shift, y - 35, 65 + hurt_shift, y - 24), fill=accent)
-        draw.rectangle((36 + hurt_shift, y - 42, 60 + hurt_shift, y - 35), fill=rgba("#d8b75d"))
-        draw.rectangle((28 + hurt_shift, y - 30, 34 + hurt_shift, y - 18), fill=rgba("#d8b75d"))
-        draw.rectangle((62 + hurt_shift, y - 30, 68 + hurt_shift, y - 18), fill=rgba("#d8b75d"))
+        draw.rectangle((x - 18, y - 36, x + 18, y - 24), fill=darken(accent, 0.1))
+        draw.rectangle((x - 12, y - 43, x + 12, y - 35), fill=rgba("#d8b75d"))
+        draw.rectangle((x - 22, y - 31, x - 16, y - 18), fill=rgba("#d8b75d"))
+        draw.rectangle((x + 16, y - 31, x + 22, y - 18), fill=rgba("#d8b75d"))
+        draw.line((x - 16, y - 34, x + 16, y - 34), fill=lighten(accent, 0.28), width=1)
     elif role == "cowboy":
-        draw.rectangle((25 + hurt_shift, y - 34, 71 + hurt_shift, y - 28), fill=accent)
-        draw.rectangle((35 + hurt_shift, y - 44, 61 + hurt_shift, y - 32), fill=accent)
-        draw.rectangle((32 + hurt_shift, y - 33, 64 + hurt_shift, y - 29), fill=rgba("#3a2314"))
+        draw.rectangle((x - 24, y - 35, x + 24, y - 29), fill=darken(accent, 0.08))
+        draw.rectangle((x - 13, y - 45, x + 13, y - 32), fill=accent)
+        draw.rectangle((x - 16, y - 33, x + 16, y - 29), fill=rgba("#3a2314"))
+        draw.rectangle((x - 9, y - 41, x + 9, y - 38), fill=lighten(accent, 0.22))
     elif role == "mage":
-        draw.polygon([(29 + hurt_shift, y - 27), (48 + hurt_shift, y - 52), (67 + hurt_shift, y - 27)], fill=accent)
-        draw.rectangle((34 + hurt_shift, y - 30, 62 + hurt_shift, y - 23), fill=body)
-        draw.rectangle((48 + hurt_shift, y - 49, 52 + hurt_shift, y - 43), fill=rgba("#f4e08a"))
+        draw.polygon([(x - 19, y - 27), (x, y - 55), (x + 19, y - 27)], fill=accent)
+        draw.rectangle((x - 14, y - 30, x + 14, y - 23), fill=body)
+        draw.rectangle((x - 1, y - 51, x + 3, y - 44), fill=rgba("#f4e08a"))
+        draw.ellipse((x - 4, y - 56, x + 6, y - 47), fill=rgba("#7ee7ff", 155))
 
     weapon_y = y - 2
-    muzzle_x = 72 - recoil
-    draw.rectangle((55 + hurt_shift - recoil, weapon_y, 76 + hurt_shift - recoil, weapon_y + 5), fill=rgba("#30231b"))
-    draw.rectangle((65 + hurt_shift - recoil, weapon_y - 2, 82 + hurt_shift - recoil, weapon_y + 3), fill=rgba("#151515"))
+    muzzle_x = x + 25 - recoil
+    draw.rectangle((x + 5 - recoil, weapon_y, x + 31 - recoil, weapon_y + 6), fill=rgba("#201915"))
+    draw.rectangle((x + 17 - recoil, weapon_y - 4, x + 39 - recoil, weapon_y + 2), fill=rgba("#17191b"))
+    draw.rectangle((x + 24 - recoil, weapon_y - 5, x + 42 - recoil, weapon_y - 2), fill=metal)
+    draw.rectangle((x + 6 - recoil, weapon_y + 6, x + 15 - recoil, weapon_y + 18), fill=leather)
+    draw.line((x + 20 - recoil, weapon_y - 3, x + 38 - recoil, weapon_y - 3), fill=lighten(metal, 0.28), width=1)
     if animation == "shoot" and frame in {1, 2}:
-        draw.polygon([(muzzle_x + 8, weapon_y - 5), (muzzle_x + 24, weapon_y + 1), (muzzle_x + 8, weapon_y + 9)], fill=rgba("#ffd35c"))
-        draw.polygon([(muzzle_x + 12, weapon_y - 2), (muzzle_x + 29, weapon_y + 2), (muzzle_x + 12, weapon_y + 6)], fill=rgba("#ff7332"))
+        draw.polygon([(muzzle_x + 13, weapon_y - 8), (muzzle_x + 34, weapon_y), (muzzle_x + 13, weapon_y + 10)], fill=rgba("#ffd35c"))
+        draw.polygon([(muzzle_x + 18, weapon_y - 4), (muzzle_x + 43, weapon_y + 2), (muzzle_x + 18, weapon_y + 7)], fill=rgba("#ff7332"))
+        draw.polygon([(muzzle_x + 10, weapon_y - 3), (muzzle_x + 22, weapon_y + 2), (muzzle_x + 10, weapon_y + 6)], fill=rgba("#fff7c7"))
 
     if animation == "hurt":
-        draw.line((29, 27, 70, 62), fill=rgba("#ff564a", 180), width=3)
+        draw.line((x - 24, 27, x + 24, 62), fill=rgba("#ff564a", 185), width=3)
+        draw.line((x - 17, 62, x + 22, 30), fill=rgba("#ffd0ca", 120), width=1)
 
 
 def make_character_sheet(role: str, animation: str, frames: int, body: Color, accent: Color, dark: Color) -> Image.Image:
@@ -242,35 +357,63 @@ def generate_enemies() -> None:
         for frame in range(frames):
             image = Image.new("RGBA", (96, 96), (0, 0, 0, 0))
             draw = ImageDraw.Draw(image)
-            wing = int(math.sin(frame * 1.6) * 8)
-            draw.ellipse((27, 65, 69, 78), fill=rgba("#0b0c0d", 80))
-            draw.polygon([(45, 45), (10, 26 + wing), (24, 60)], fill=rgba("#21173d"))
-            draw.polygon([(51, 45), (86, 26 - wing), (72, 60)], fill=rgba("#21173d"))
-            draw.polygon([(46, 48), (17, 34 + wing), (28, 55)], fill=rgba("#7f3fa4"))
-            draw.polygon([(50, 48), (79, 34 - wing), (68, 55)], fill=rgba("#7f3fa4"))
-            draw.ellipse((34, 32, 62, 60), fill=rgba("#3b265f"))
-            draw.rectangle((39, 39, 44, 44), fill=rgba("#ff6ec7"))
-            draw.rectangle((52, 39, 57, 44), fill=rgba("#ff6ec7"))
+            wing = int(math.sin(frame * 1.6) * 10)
+            dash = 6 if animation == "dash" and frame in {1, 2} else 0
+            draw_soft_shadow(draw, 48 + dash, 74, 50, 12, 80)
+            left_wing = [(45 + dash, 45), (8 + dash, 23 + wing), (18 + dash, 47 + wing // 2), (27 + dash, 63)]
+            right_wing = [(51 + dash, 45), (88 + dash, 23 - wing), (78 + dash, 47 - wing // 2), (69 + dash, 63)]
+            draw.polygon(left_wing, fill=rgba("#160f2b"))
+            draw.polygon(right_wing, fill=rgba("#160f2b"))
+            draw.polygon([(45 + dash, 48), (16 + dash, 32 + wing), (29 + dash, 55), (38 + dash, 52)], fill=rgba("#7040a0"))
+            draw.polygon([(51 + dash, 48), (80 + dash, 32 - wing), (67 + dash, 55), (58 + dash, 52)], fill=rgba("#7040a0"))
+            draw.line((18 + dash, 34 + wing, 28 + dash, 55), fill=rgba("#b77dff", 120), width=1)
+            draw.line((78 + dash, 34 - wing, 68 + dash, 55), fill=rgba("#b77dff", 120), width=1)
+            draw.ellipse((31 + dash, 30, 65 + dash, 62), fill=rgba("#1d1536"))
+            draw.ellipse((35 + dash, 28, 61 + dash, 55), fill=rgba("#3b265f"))
+            draw.polygon([(34 + dash, 33), (28 + dash, 19), (42 + dash, 29)], fill=rgba("#21173d"))
+            draw.polygon([(62 + dash, 33), (68 + dash, 19), (54 + dash, 29)], fill=rgba("#21173d"))
+            draw.rectangle((39 + dash, 39, 45 + dash, 45), fill=rgba("#ff6ec7"))
+            draw.rectangle((52 + dash, 39, 58 + dash, 45), fill=rgba("#ff6ec7"))
+            draw.rectangle((41 + dash, 41, 44 + dash, 44), fill=rgba("#fff0fb"))
+            draw.rectangle((54 + dash, 41, 57 + dash, 44), fill=rgba("#fff0fb"))
+            draw.polygon([(43 + dash, 52), (47 + dash, 59), (50 + dash, 52)], fill=rgba("#efe4ff"))
+            draw.polygon([(50 + dash, 52), (54 + dash, 59), (57 + dash, 52)], fill=rgba("#efe4ff"))
             if animation == "hurt":
-                draw.line((27, 28, 66, 62), fill=rgba("#ff564a", 190), width=3)
+                draw.line((27 + dash, 28, 66 + dash, 62), fill=rgba("#ff564a", 190), width=3)
+                draw.line((31 + dash, 61, 64 + dash, 31), fill=rgba("#ffd0ca", 115), width=1)
             sheet.alpha_composite(image, (frame * 96, 0))
         save(sheet, f"enemies/bat/{animation}.png")
+        if animation in {"dash", "hurt"}:
+            save(tint_sprite_sheet(sheet, rgba("#c7caff"), 0.32), f"enemies/wolf/{animation}.png")
 
     for animation, frames in {"idle": 4, "hop": 6, "squash": 3}.items():
         sheet = Image.new("RGBA", (96 * frames, 96), (0, 0, 0, 0))
         for frame in range(frames):
             image = Image.new("RGBA", (96, 96), (0, 0, 0, 0))
             draw = ImageDraw.Draw(image)
-            hop = int(abs(math.sin(frame * 1.1)) * 8) if animation == "hop" else 0
-            squash = 7 if animation == "squash" and frame == 1 else 0
-            draw.ellipse((25, 70, 71, 81), fill=rgba("#0b0c0d", 80))
-            draw.rounded_rectangle((23, 38 + hop + squash, 73, 72 + hop), radius=17, fill=rgba("#8239d5"))
-            draw.rounded_rectangle((29, 31 + hop + squash, 67, 61 + hop), radius=18, fill=rgba("#9d57f0"))
-            draw.rectangle((36, 45 + hop, 42, 51 + hop), fill=rgba("#160e25"))
-            draw.rectangle((54, 45 + hop, 60, 51 + hop), fill=rgba("#160e25"))
-            draw.rectangle((41, 60 + hop, 56, 64 + hop), fill=rgba("#512296"))
+            hop = int(abs(math.sin(frame * 1.1)) * 9) if animation == "hop" else 0
+            squash = 8 if animation == "squash" and frame == 1 else 0
+            top = 31 + hop + squash
+            bottom = 73 + hop
+            draw_soft_shadow(draw, 48, 75, 52, 13, 76)
+            draw.rounded_rectangle((22, top + 9, 74, bottom), radius=18, fill=rgba("#5e2397"))
+            draw.rounded_rectangle((25, top, 71, bottom - 6), radius=19, fill=rgba("#8b3fd8"))
+            draw.rounded_rectangle((31, top + 4, 65, bottom - 17), radius=14, fill=rgba("#b063ff", 205))
+            draw.ellipse((34, top + 6, 47, top + 16), fill=rgba("#d8a8ff", 90))
+            draw.ellipse((49, top + 13, 61, top + 21), fill=rgba("#d8a8ff", 75))
+            draw.rectangle((35, top + 17, 42, top + 24), fill=rgba("#160e25"))
+            draw.rectangle((54, top + 17, 61, top + 24), fill=rgba("#160e25"))
+            draw.rectangle((37, top + 19, 40, top + 22), fill=rgba("#f0f6ff"))
+            draw.rectangle((56, top + 19, 59, top + 22), fill=rgba("#f0f6ff"))
+            draw.arc((39, top + 30, 57, top + 40), 10, 170, fill=rgba("#301052"), width=2)
+            for x in [28, 68]:
+                draw.polygon([(x, top + 22), (x - 7 if x < 48 else x + 7, top + 31), (x, top + 36)], fill=rgba("#6b2ead"))
+            if animation == "squash":
+                draw.line((27, top + 10, 69, top + 30), fill=rgba("#ff7dd2", 120), width=2)
             sheet.alpha_composite(image, (frame * 96, 0))
         save(sheet, f"enemies/slime/{animation}.png")
+        save(tint_sprite_sheet(sheet, rgba("#6cff8a"), 0.45), f"enemies/spitter/{animation}.png")
+        save(tint_sprite_sheet(sheet, rgba("#c8cbd4"), 0.58), f"enemies/golem/{animation}.png")
 
 
 def make_icon(kind: str, size: int = 48, glow: int = 0) -> Image.Image:

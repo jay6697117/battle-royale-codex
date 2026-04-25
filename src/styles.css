@@ -358,33 +358,6 @@ body,
   box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.18), 0 4px 0 rgba(0, 0, 0, 0.35);
 }
 
-.inventory-current {
-  position: absolute;
-  bottom: clamp(92px, 10vh, 124px);
-  left: 50%;
-  padding: 5px 12px;
-  border: 2px solid rgba(255, 212, 90, 0.82);
-  border-radius: 999px;
-  background: rgba(14, 12, 20, 0.8);
-  color: #f8ffe9;
-  font-size: clamp(12px, 1.25vw, 16px);
-  font-weight: 900;
-  letter-spacing: 0.04em;
-  pointer-events: none;
-  text-shadow: 0 2px #000;
-  transform: translateX(-50%);
-  transition: opacity 140ms ease;
-  z-index: 21;
-}
-
-.inventory-current b {
-  color: var(--gold);
-}
-
-.inventory-current.is-occluding {
-  opacity: 0.7;
-}
-
 .inventory {
   position: absolute;
   bottom: clamp(18px, 3.2vh, 42px);
@@ -614,31 +587,32 @@ body,
 .progression-panel {
   position: absolute;
   left: 50%;
-  bottom: clamp(120px, 14.5vh, 156px);
+  bottom: clamp(124px, 14.5vh, 156px);
   display: grid;
-  width: min(250px, 24vw);
-  gap: 4px;
-  padding: 6px 9px;
-  border: 1px solid rgba(255, 212, 90, 0.62);
-  border-radius: 9px;
-  background: linear-gradient(180deg, rgba(25, 27, 23, 0.82), rgba(15, 18, 17, 0.68));
-  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.2), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  width: min(430px, 46vw);
+  gap: 7px;
+  padding: 8px 12px 9px;
+  border: 2px solid rgba(255, 212, 90, 0.66);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(27, 34, 24, 0.82), rgba(18, 22, 18, 0.66));
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.22), inset 0 0 0 1px rgba(255, 255, 255, 0.07);
   color: white;
   pointer-events: none;
   text-shadow: 0 2px #000;
   transform: translateX(-50%);
   transition: opacity 140ms ease;
+  z-index: 19;
 }
 
 .progression-panel.is-occluding {
-  opacity: 0.54;
+  opacity: 0.62;
 }
 
 .progression-main {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(120px, 1fr) auto;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .progression-main strong {
@@ -648,18 +622,36 @@ body,
 }
 
 .progression-main span,
-.progression-bonuses {
+.progression-meta {
   color: #f4ffe9;
   font-size: clamp(9px, 0.9vw, 12px);
   font-weight: 900;
 }
 
-.progression-bonuses {
-  display: flex;
+.progression-meta {
+  display: grid;
+  grid-template-columns: auto auto minmax(92px, 1fr);
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   color: #dff2d8;
+}
+
+.progression-meta span {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.progression-meta .current-slot {
+  justify-self: end;
+  padding: 3px 8px;
+  border: 1px solid rgba(255, 212, 90, 0.58);
+  border-radius: 999px;
+  background: rgba(255, 212, 90, 0.13);
+  color: #f8ffe9;
+}
+
+.progression-meta b {
+  color: var(--gold);
 }
 
 .xp-bar {
@@ -675,42 +667,6 @@ body,
   height: 100%;
   border-radius: 999px;
   background: linear-gradient(90deg, #82ed5c, #ffd45a);
-}
-
-.player-vitals {
-  position: absolute;
-  left: 50%;
-  bottom: clamp(104px, 13vh, 142px);
-  width: min(280px, 28vw);
-  height: 12px;
-  overflow: hidden;
-  border: 2px solid rgba(0, 0, 0, 0.76);
-  border-radius: 4px;
-  background: #101414;
-  opacity: 0.72;
-  transform: translateX(-50%);
-  transition: opacity 140ms ease;
-}
-
-.player-vitals.is-occluding {
-  opacity: 0.34;
-}
-
-.player-vitals div {
-  position: absolute;
-  left: 0;
-  height: 100%;
-}
-
-.vital-health {
-  top: 0;
-  background: var(--health);
-}
-
-.vital-shield {
-  bottom: 0;
-  height: 35%;
-  background: var(--shield);
 }
 
 .start-notice {

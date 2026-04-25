@@ -292,11 +292,19 @@ export class BattleScene extends Phaser.Scene {
       ["bat", "hurt"],
       ["slime", "idle"],
       ["slime", "hop"],
-      ["slime", "squash"]
+      ["slime", "squash"],
+      ["wolf", "dash"],
+      ["wolf", "hurt"],
+      ["spitter", "idle"],
+      ["spitter", "hop"],
+      ["spitter", "squash"],
+      ["golem", "idle"],
+      ["golem", "hop"],
+      ["golem", "squash"]
     ] as [EnemyId, EnemyAnimationId][]) {
       this.createLoopingAnimation(enemySheetKey(id, animation), animation === "dash" ? 10 : 7);
     }
-    for (const id of ["ammo", "medkit", "shield", "rifle", "shotgun", "coin"] as const) {
+    for (const id of ["ammo", "medkit", "shield", "pistol", "rifle", "shotgun", "coin"] as const) {
       this.createLoopingAnimation(pickupGlowKey(id), 6);
     }
     for (const key of ["fx-muzzle-flash", TextureKey.Spark, "fx-pickup-ring", TextureKey.StormEdge]) {
@@ -672,27 +680,36 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private animationForPve(entity: EntityState) {
-    if (entity.pveType === "slime" || entity.pveType === "spitter" || entity.pveType === "golem") {
-      return enemySheetKey("slime", "hop");
+    switch (entity.pveType) {
+      case "wolf":
+        return enemySheetKey("wolf", "dash");
+      case "spitter":
+        return enemySheetKey("spitter", "hop");
+      case "golem":
+        return enemySheetKey("golem", "hop");
+      case "slime":
+        return enemySheetKey("slime", "hop");
+      default:
+        return enemySheetKey("bat", "fly");
     }
-    return enemySheetKey("bat", entity.pveType === "wolf" ? "dash" : "fly");
   }
 
   private textureForPve(entity: EntityState) {
-    if (entity.pveType === "slime" || entity.pveType === "spitter" || entity.pveType === "golem") {
-      return enemySheetKey("slime", "idle");
+    switch (entity.pveType) {
+      case "wolf":
+        return enemySheetKey("wolf", "dash");
+      case "spitter":
+        return enemySheetKey("spitter", "idle");
+      case "golem":
+        return enemySheetKey("golem", "idle");
+      case "slime":
+        return enemySheetKey("slime", "idle");
+      default:
+        return enemySheetKey("bat", "fly");
     }
-    return enemySheetKey("bat", "fly");
   }
 
   private stylePveSprite(entity: EntityState, sprite: Phaser.GameObjects.Sprite) {
-    const tintByType = {
-      bat: 0xffffff,
-      slime: 0xffffff,
-      wolf: 0xd8d3ff,
-      spitter: 0x80ff86,
-      golem: 0xb8b8c4
-    } as const;
     const scaleByType = {
       bat: 0.78,
       slime: 0.78,
@@ -702,7 +719,7 @@ export class BattleScene extends Phaser.Scene {
     } as const;
     const type = entity.pveType ?? "bat";
     sprite.setScale(scaleByType[type]);
-    sprite.setTint(tintByType[type]);
+    sprite.clearTint();
   }
 
   private renderHealthBar(graphics: Phaser.GameObjects.Graphics, entity: EntityState) {

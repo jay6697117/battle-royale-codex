@@ -42,7 +42,7 @@ export type TextureKey = (typeof TextureKey)[keyof typeof TextureKey];
 
 export type CharacterId = "rogue" | "samurai" | "ninja" | "cowboy" | "mage";
 export type CharacterAnimationId = "idle" | "walk" | "shoot" | "hurt";
-export type EnemyId = "bat" | "slime";
+export type EnemyId = "bat" | "slime" | "wolf" | "spitter" | "golem";
 export type EnemyAnimationId = "fly" | "dash" | "hurt" | "idle" | "hop" | "squash";
 
 export interface ImageAsset {
@@ -110,10 +110,18 @@ const enemyFrames: Record<string, number> = {
   "bat-hurt": 3,
   "slime-idle": 4,
   "slime-hop": 6,
-  "slime-squash": 3
+  "slime-squash": 3,
+  "wolf-dash": 4,
+  "wolf-hurt": 3,
+  "spitter-idle": 4,
+  "spitter-hop": 6,
+  "spitter-squash": 3,
+  "golem-idle": 4,
+  "golem-hop": 6,
+  "golem-squash": 3
 };
 
-const pickupTypes = ["ammo", "medkit", "shield", "rifle", "shotgun", "coin"] as const;
+const pickupTypes = ["ammo", "medkit", "shield", "pistol", "rifle", "shotgun", "coin"] as const;
 
 export const characterSheetKey = (id: CharacterId, animation: CharacterAnimationId) =>
   `character-${id}-${animation}`;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { collidesForMovement } from "../content/map";
-import { createInitialGameState, stepSimulation } from "./state";
+import { createInitialGameState, stepSimulation, type EntityState, type PickupType } from "./state";
 import type { InputFrame } from "../input/actions";
 
 const emptyInput: InputFrame = {
@@ -19,6 +19,20 @@ const requireEntity = (state: ReturnType<typeof createInitialGameState>, id: str
     throw new Error(`Missing entity ${id}`);
   }
   return entity;
+};
+
+const alivePickups = (state: ReturnType<typeof createInitialGameState>) =>
+  Object.values(state.entities).filter((entity): entity is EntityState => entity.kind === "pickup" && entity.alive);
+
+const hasWeaponPickup = (pickups: EntityState[]) =>
+  pickups.some((pickup) => pickup.pickupType === "pistol" || pickup.pickupType === "rifle" || pickup.pickupType === "shotgun");
+
+const removePickups = (state: ReturnType<typeof createInitialGameState>, keepTypes: PickupType[] = []) => {
+  for (const entity of Object.values(state.entities)) {
+    if (entity.kind === "pickup" && !keepTypes.includes(entity.pickupType ?? "coin")) {
+      entity.alive = false;
+    }
+  }
 };
 
 describe("battle royale simulation", () => {
@@ -101,6 +115,57 @@ describe("battle royale simulation", () => {
     stepSimulation(state, { ...emptyInput, selectedSlot: 5, useItem: true }, 80);
     expect(player.health).toBeGreaterThan(42);
     expect(state.inventory.medkits).toBeGreaterThanOrEqual(1);
+  });
+
+  it("adds pistol pickups to inventory and selects the pistol slot", () => {
+    const state = createInitialGameState();
+    const player = requireEntity(state, state.playerId);
+    player.x = 720;
+    player.y = 520;
+    state.inventory.selectedSlot = 3;
+    const ammoBefore = state.inventory.pistolAmmo;
+    state.entities.test_pistol = {
+      id: "test_pistol",
+      kind: "pickup",
+      pickupType: "pistol",
+      x: 724,
+      y: 522,
+      radius: 18,
+      alive: true
+    };
+
+    stepSimulation(state, emptyInput, 80);
+
+    expect(state.inventory.pistolAmmo).toBe(ammoBefore + 20);
+    expect(state.inventory.selectedSlot).toBe(1);
+  });
+
+  it("respawns pickups after the map runs out of pickups", () => {
+    const state = createInitialGameState();
+    removePickups(state);
+
+    stepSimulation(state, emptyInput, 3_100);
+
+    const pickups = alivePickups(state);
+    expect(pickups.length).toBeGreaterThanOrEqual(2);
+    expect(pickups.length).toBeLessThanOrEqual(4);
+    expect(hasWeaponPickup(pickups)).toBe(true);
+    for (const pickup of pickups) {
+      expect(pickup.id.startsWith("respawn_"), pickup.id).toBe(true);
+      expect(collidesForMovement(pickup, pickup.x, pickup.y, pickup.radius + 8)).toBe(false);
+    }
+  });
+
+  it("respawns at least one pistol rifle or shotgun when weapon pickups are gone", () => {
+    const state = createInitialGameState();
+    removePickups(state, ["ammo", "medkit", "shield", "coin"]);
+
+    stepSimulation(state, emptyInput, 3_100);
+
+    const respawnedPickups = alivePickups(state).filter((pickup) => pickup.id.startsWith("respawn_"));
+    expect(respawnedPickups.length).toBeGreaterThanOrEqual(2);
+    expect(respawnedPickups.length).toBeLessThanOrEqual(4);
+    expect(hasWeaponPickup(respawnedPickups)).toBe(true);
   });
 
   it("spawns expanded pve monster variants", () => {

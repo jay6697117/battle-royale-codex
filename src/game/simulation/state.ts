@@ -3,7 +3,9 @@ import {
   collidesForMovement,
   collidesForProjectile,
   WORLD_CENTER_X,
-  WORLD_CENTER_Y
+  WORLD_CENTER_Y,
+  WORLD_HEIGHT,
+  WORLD_WIDTH
 } from "../content/map";
 import { WEAPONS, weaponForSlot, type WeaponId } from "../content/weapons";
 import type { InputFrame } from "../input/actions";
@@ -12,7 +14,7 @@ export type EntityKind = "player" | "bot" | "pve" | "projectile" | "pickup";
 export type MatchPhase = "playing" | "won" | "lost";
 export type FighterRole = "rogue" | "samurai" | "ninja" | "cowboy" | "mage";
 export type PveType = "bat" | "slime" | "wolf" | "spitter" | "golem";
-export type PickupType = "ammo" | "medkit" | "shield" | "rifle" | "shotgun" | "coin";
+export type PickupType = "ammo" | "medkit" | "shield" | "pistol" | "rifle" | "shotgun" | "coin";
 
 export interface EntityState {
   id: string;
@@ -83,6 +85,11 @@ export interface ProgressionState {
   speedMultiplier: number;
 }
 
+export interface PickupRespawnState {
+  cooldownMs: number;
+  pendingMs: number;
+}
+
 export interface GameEvent {
   id: number;
   type: "pickup" | "hit" | "elimination" | "shoot" | "heal" | "shield" | "xp" | "levelup" | "loot";
@@ -101,6 +108,7 @@ export interface GameState {
   inventory: InventoryState;
   scoreboard: ScoreboardState;
   progression: ProgressionState;
+  pickupRespawn: PickupRespawnState;
   events: GameEvent[];
   nextEventId: number;
   nextEntityId: number;
@@ -114,6 +122,16 @@ const PICKUP_RADIUS = 16;
 const XP_THRESHOLDS = [0, 40, 95, 165, 250, 350, 470, 610, 770, 950];
 const PVE_SPAWN_CLEARANCE = 40;
 const PICKUP_SPAWN_CLEARANCE = 8;
+const PICKUP_RESPAWN_DELAY_MS = 3_000;
+const PICKUP_RESPAWN_COOLDOWN_MS = 8_000;
+const PICKUP_RESPAWN_MIN_COUNT = 2;
+const PICKUP_RESPAWN_MAX_COUNT = 4;
+const PICKUP_RESPAWN_SMALL_STORM_RADIUS = 400;
+const PICKUP_RESPAWN_PLAYER_CLEARANCE = 110;
+const PICKUP_RESPAWN_PICKUP_CLEARANCE = 64;
+const PICKUP_RESPAWN_ATTEMPTS = 80;
+const WEAPON_PICKUP_TYPES = ["pistol", "rifle", "shotgun"] as const satisfies readonly PickupType[];
+const RESPAWN_PICKUP_TYPES = ["ammo", "medkit", "shield", "coin", "pistol", "rifle", "shotgun"] as const satisfies readonly PickupType[];
 
 type EntityList = EntityState[];
 
@@ -288,6 +306,10 @@ export const createInitialGameState = (): GameState => {
       shotsFired: 0
     },
     progression: createInitialProgression(),
+    pickupRespawn: {
+      cooldownMs: 0,
+      pendingMs: 0
+    },
     events: [],
     nextEventId: 1,
     nextEntityId: 1
@@ -333,6 +355,7 @@ const stepFixed = (state: GameState, input: InputFrame, deltaMs: number) => {
   updateProjectiles(state, entities, deltaMs);
   applyStormDamage(entities, state, deltaMs);
   collectPickups(state, entities);
+  updatePickupRespawn(state, deltaMs);
   applyUsableItem(state, input);
   updateScoreboard(state, entities);
   resolvePhase(state, entities);
@@ -722,6 +745,10 @@ const collectPickups = (state: GameState, entities: EntityList) => {
         state.inventory.shotgunAmmo += 4;
         state.inventory.rifleAmmo += 12;
         break;
+      case "pistol":
+        state.inventory.pistolAmmo += 20;
+        state.inventory.selectedSlot = 1;
+        break;
       case "medkit":
         state.inventory.medkits += 1;
         break;
@@ -745,6 +772,127 @@ const collectPickups = (state: GameState, entities: EntityList) => {
     pushEvent(state, "pickup", pickup.x, pickup.y, pickup.id);
   }
 };
+
+const updatePickupRespawn = (state: GameState, deltaMs: number) => {
+  state.pickupRespawn.cooldownMs = Math.max(0, state.pickupRespawn.cooldownMs - deltaMs);
+
+  if (state.pickupRespawn.pendingMs > 0) {
+    state.pickupRespawn.pendingMs = Math.max(0, state.pickupRespawn.pendingMs - deltaMs);
+    if (state.pickupRespawn.pendingMs === 0) {
+      respawnPickups(state);
+      state.pickupRespawn.cooldownMs = PICKUP_RESPAWN_COOLDOWN_MS;
+    }
+    return;
+  }
+
+  if (state.pickupRespawn.cooldownMs > 0) {
+    return;
+  }
+
+  const pickups = getAlivePickups(state);
+  if (pickups.length === 0 || !pickups.some((pickup) => isWeaponPickupType(pickup.pickupType))) {
+    state.pickupRespawn.pendingMs = PICKUP_RESPAWN_DELAY_MS;
+  }
+};
+
+const respawnPickups = (state: GameState) => {
+  const pickupTypes = createRespawnPickupTypes(respawnPickupCount(state));
+  const spawnedPositions: Array<{ x: number; y: number }> = [];
+
+  for (const pickupType of pickupTypes) {
+    const position = findRandomPickupRespawnPosition(state, spawnedPositions);
+    const id = `respawn_${pickupType}_${state.nextEntityId}`;
+    state.nextEntityId += 1;
+    state.entities[id] = createPickup(id, pickupType, position.x, position.y);
+    spawnedPositions.push(position);
+    pushEvent(state, "loot", position.x, position.y, id, lootValue(pickupType));
+  }
+};
+
+const createRespawnPickupTypes = (count: number): PickupType[] => {
+  const pickupTypes = Array.from({ length: count }, () => randomItem(RESPAWN_PICKUP_TYPES));
+
+  if (!pickupTypes.some(isWeaponPickupType)) {
+    pickupTypes[0] = randomItem(WEAPON_PICKUP_TYPES);
+  }
+
+  return pickupTypes;
+};
+
+const respawnPickupCount = (state: GameState) => {
+  if (state.storm.radius < PICKUP_RESPAWN_SMALL_STORM_RADIUS) {
+    return PICKUP_RESPAWN_MIN_COUNT;
+  }
+  return PICKUP_RESPAWN_MIN_COUNT + Math.floor(Math.random() * (PICKUP_RESPAWN_MAX_COUNT - PICKUP_RESPAWN_MIN_COUNT + 1));
+};
+
+const findRandomPickupRespawnPosition = (state: GameState, spawnedPositions: Array<{ x: number; y: number }>) => {
+  for (let attempt = 0; attempt < PICKUP_RESPAWN_ATTEMPTS; attempt += 1) {
+    const angle = Math.random() * Math.PI * 2;
+    const radius = Math.sqrt(Math.random()) * Math.max(0, state.storm.radius - PICKUP_RADIUS - PICKUP_SPAWN_CLEARANCE);
+    const candidate = clampToWorld(
+      state.storm.centerX + Math.cos(angle) * radius,
+      state.storm.centerY + Math.sin(angle) * radius,
+      PICKUP_RADIUS + PICKUP_SPAWN_CLEARANCE
+    );
+
+    if (isValidPickupRespawnPosition(state, candidate.x, candidate.y, spawnedPositions)) {
+      return candidate;
+    }
+  }
+
+  return fallbackPickupRespawnPosition(state, spawnedPositions);
+};
+
+const fallbackPickupRespawnPosition = (state: GameState, spawnedPositions: Array<{ x: number; y: number }>) => {
+  for (let offset = 0; offset < INITIAL_PICKUP_SPAWNS.length; offset += 1) {
+    const spawn = INITIAL_PICKUP_SPAWNS[(state.nextEntityId + offset) % INITIAL_PICKUP_SPAWNS.length];
+    if (spawn && isValidPickupRespawnPosition(state, spawn.x, spawn.y, spawnedPositions)) {
+      return { x: spawn.x, y: spawn.y };
+    }
+  }
+
+  return { x: state.storm.centerX, y: state.storm.centerY };
+};
+
+const isValidPickupRespawnPosition = (
+  state: GameState,
+  x: number,
+  y: number,
+  spawnedPositions: Array<{ x: number; y: number }>
+) => {
+  const safeRadius = PICKUP_RADIUS + PICKUP_SPAWN_CLEARANCE;
+  const dx = x - state.storm.centerX;
+  const dy = y - state.storm.centerY;
+  if (Math.hypot(dx, dy) > state.storm.radius - safeRadius) {
+    return false;
+  }
+  if (x < safeRadius || x > WORLD_WIDTH - safeRadius || y < safeRadius || y > WORLD_HEIGHT - safeRadius) {
+    return false;
+  }
+  if (collidesForMovement({ kind: "pickup" }, x, y, safeRadius)) {
+    return false;
+  }
+  for (const entity of Object.values(state.entities)) {
+    if (!entity.alive || (entity.kind !== "player" && entity.kind !== "bot")) {
+      continue;
+    }
+    if (Math.hypot(entity.x - x, entity.y - y) < entity.radius + PICKUP_RADIUS + PICKUP_RESPAWN_PLAYER_CLEARANCE) {
+      return false;
+    }
+  }
+  return spawnedPositions.every(
+    (position) => Math.hypot(position.x - x, position.y - y) >= PICKUP_RESPAWN_PICKUP_CLEARANCE
+  );
+};
+
+const getAlivePickups = (state: GameState) =>
+  Object.values(state.entities).filter((entity) => entity.kind === "pickup" && entity.alive);
+
+const isWeaponPickupType = (pickupType: PickupType | undefined): pickupType is (typeof WEAPON_PICKUP_TYPES)[number] =>
+  pickupType === "pistol" || pickupType === "rifle" || pickupType === "shotgun";
+
+const randomItem = <T>(items: readonly T[]): T => items[Math.floor(Math.random() * items.length)] ?? items[0]!;
 
 const applyUsableItem = (state: GameState, input: InputFrame) => {
   if (!input.useItem) {

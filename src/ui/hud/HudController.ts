@@ -36,7 +36,6 @@ export class HudController {
     const fighters = entities.filter(
       (entity) => entity.kind === "player" || entity.kind === "bot"
     );
-    const player = state.entities[state.playerId];
     const hudOcclusion = this.getHudOcclusion(entities);
     const stormSeconds = Math.max(
       0,
@@ -63,15 +62,18 @@ export class HudController {
           .join("")}
       </div>
       <div class="storm-timer ${hudOcclusion.miniMap ? "is-occluding" : ""}"><span></span>${this.formatTime(stormSeconds)}</div>
-      <div class="progression-panel ${hudOcclusion.playerVitals ? "is-occluding" : ""}">
+      <div class="progression-panel ${hudOcclusion.inventory ? "is-occluding" : ""}">
         <div class="progression-main"><strong>等级 ${state.progression.level}</strong><div class="xp-bar"><i style="width:${xpPercent}%"></i></div><span>${state.progression.xp}/${state.progression.xpToNextLevel}</span></div>
-        <div class="progression-bonuses"><span>金币 ${state.inventory.coins}</span><span>伤害 +${damageBonus}%</span></div>
+        <div class="progression-meta">
+          <span>金币 ${state.inventory.coins}</span>
+          <span>伤害 +${damageBonus}%</span>
+          <span class="current-slot">当前 <b>${this.slotLabel(state.inventory.selectedSlot)}</b></span>
+        </div>
       </div>
       <div class="hud-actions">
         <button type="button">◈</button>
         <button type="button">☺</button>
       </div>
-      <div class="inventory-current ${hudOcclusion.inventory ? "is-occluding" : ""}" aria-live="polite">当前：<b>${this.slotLabel(state.inventory.selectedSlot)}</b></div>
       <div class="inventory ${hudOcclusion.inventory ? "is-occluding" : ""}">
         ${this.renderSlot(1, "weapon-pistol", state.inventory.pistolAmmo, state.inventory.selectedSlot, {
           title: "手枪",
@@ -100,10 +102,6 @@ export class HudController {
         })}
       </div>
       ${state.phase !== "playing" ? this.renderEndState(state.phase) : ""}
-      <div class="player-vitals ${hudOcclusion.playerVitals ? "is-occluding" : ""}">
-        <div class="vital-health" style="width:${this.percent(player?.health, player?.maxHealth)}%"></div>
-        <div class="vital-shield" style="width:${this.percent(player?.shield, 60)}%"></div>
-      </div>
     `;
   }
 
@@ -333,7 +331,6 @@ export class HudController {
       left: hasEntityInRegion(0, 0, 27, 67),
       topRight: hasEntityInRegion(76, 0, 100, 12),
       miniMap: hasEntityInRegion(71, 5, 100, 45),
-      playerVitals: hasEntityInRegion(38, 72, 62, 86),
       inventory: hasEntityInRegion(31, 78, 69, 100)
     };
   }

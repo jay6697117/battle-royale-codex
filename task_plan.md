@@ -336,16 +336,16 @@ Fix the screenshot-visible issue where non-flying player/monsters can appear ins
 ## Current Status
 - User provided a screenshot showing the player standing inside the southwest pond.
 - Current background was generated from `game.png` style and water shapes no longer exactly match old rectangular `WATER_ZONES`.
-- Existing collision tests pass, so the likely bug is visual/collision misalignment rather than the collision function being entirely absent.
+- Fix is complete: `WATER_ZONES` now cover the visible southwest and north ponds in the v2 arena background, and the player has a clear self-locator.
 
 ## Phases
 
 | Phase | Status | Purpose | Output |
 |---|---|---|---|
-| 1. Audit | in_progress | Compare visible water, `WATER_ZONES`, spawn points, and movement logic. | Findings and root cause. |
-| 2. Water fix | pending | Adjust collision zones or spawn logic so grounded entities cannot enter visible water. | Updated map logic/tests. |
-| 3. Player visibility fix | pending | Add an obvious player marker for match start/restart. | Phaser visual cue/HUD update. |
-| 4. Validation | pending | Run tests/build and browser smoke validation. | Results in `progress.md`. |
+| 1. Audit | complete | Compare visible water, `WATER_ZONES`, spawn points, and movement logic. | Root cause was visual/collision mismatch, not missing movement collision. |
+| 2. Water fix | complete | Adjust collision zones or spawn logic so grounded entities cannot enter visible water. | Updated `map.ts` water zones and `map.test.ts` coverage. |
+| 3. Player visibility fix | complete | Add an obvious player marker for match start/restart. | Player-only gold pulse ring, `▼ 你` marker, and brighter own label. |
+| 4. Validation | complete | Run tests/build and browser smoke validation. | Typecheck, tests, build, and browser runtime checks passed. |
 
 ## Decisions
 - Keep bat/flying PvE able to cross water.
@@ -355,3 +355,5 @@ Fix the screenshot-visible issue where non-flying player/monsters can appear ins
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |---|---|---|
+| `map.test.ts` expected `(1320, 280)` to be walkable, but the player radius touches the expanded north pond zone | 1 | Switched the negative land check to clearer dry land at `(1350, 280)` and kept water-edge points covered by positive collision tests. |
+| Browser screenshot still showed the start notice after pressing Enter | 1 | Verified it was an automation focus/timing issue by clicking the start button; the notice closed and a clean validation screenshot was saved. |

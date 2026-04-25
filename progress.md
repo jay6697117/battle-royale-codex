@@ -207,11 +207,11 @@ Original prompt: /Users/zhangjinhui/Desktop/battle-royale-codex/game.png
 - User reported screenshot-visible issue: non-flying player appears inside southwest water, and after restart the player is hard to find.
 - Ran planning catchup; it reported unsynced context from the arena-ground v2 work, so current diff and planning files were read before implementing.
 - Appended this task section to `task_plan.md`, `findings.md`, and `progress.md`.
-- Visual review confirmed the new terrain-only background works with runtime walls, bushes, props, enemies, pickups, HUD, and storm overlay.
-- User then selected Scheme C: bake stone walls/ruins into the background, disable runtime wall/ruin drawing, keep `map.ts` collision, and validate in browser using an agent team.
-- Created team `arena-baked-walls-team` with audit, implementation, and QA agents.
-- Updated `tools/build_imagegen_assets.py` so `arena-ground.png` bakes `STRUCTURE_ZONES` walls/ruins and `FOLIAGE_ZONES` large bushes/trees from `map.ts`, while keeping crates/barrels/chests runtime-rendered.
-- Updated `src/phaser/scenes/BattleScene.ts` to skip runtime `wall`, `ruin`, and `bush` feature rendering, preventing duplicated baked scenery.
-- Regenerated assets with `python tools/build_imagegen_assets.py`; `public/assets/maps/arena-ground.png` now includes water, grass, paths, flowers, stones, large foliage, and stone ruins/walls.
-- Created overlay audit `output/arena-ground-baked-walls-collision-audit.png`; water, solid, and foliage zones align with the baked visuals.
-- Validation passed: `npm run typecheck`, `npm run test -- src/game/assets/asset-manifest.test.ts src/game/content/map.test.ts`, `npm run test`, and `npm run build`.
+- Audited `collidesForMovement`, spawn safety, and current `arena-ground.png`; root cause was the new visible pond shapes extending beyond old `WATER_ZONES`.
+- Automatic color-bound audit found southwest visible water around `x=289..617, y=642..976` and north visible water around `x=1146..1392, y=126..323`.
+- Updated `src/game/content/map.ts` `WATER_ZONES` to cover the current generated southwest and north ponds while keeping nearby dry land walkable.
+- Updated `src/game/content/map.test.ts` to verify player/bot/slime/wolf/spitter/golem are blocked by visible water, bat can cross water, and projectiles still cross water.
+- Implemented player locator in `src/phaser/scenes/BattleScene.ts`: player-only gold pulse ring, `▼ 你` marker, and brighter own label styling.
+- Validation passed: `npm run typecheck`, `npm run test -- src/game/content/map.test.ts src/game/assets/asset-manifest.test.ts`, `npm run test`, and `npm run build`.
+- Browser validation passed on Vite port 5174: runtime collision checks confirmed player/non-flying monsters blocked by water, bat and bullets not blocked, console had no warnings/errors.
+- Screenshots saved: `output/water-collision-player-locator-play.png` and clean no-modal screenshot `output/water-collision-player-locator-clear.png`.

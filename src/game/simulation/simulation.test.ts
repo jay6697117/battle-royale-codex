@@ -192,6 +192,68 @@ describe("battle royale simulation", () => {
     }
   });
 
+  it("randomizes initial pickup positions between safe positions", () => {
+    const originalRandom = Math.random;
+
+    try {
+      Math.random = () => 0;
+      const firstState = createInitialGameState();
+      Math.random = () => 0.99;
+      const secondState = createInitialGameState();
+
+      const firstPickup = requireEntity(firstState, "pickup_rifle");
+      const secondPickup = requireEntity(secondState, "pickup_rifle");
+
+      for (const state of [firstState, secondState]) {
+        const pickups = alivePickups(state);
+        expect(pickups).toHaveLength(16);
+        for (const pickup of pickups) {
+          expect(collidesForMovement(pickup, pickup.x, pickup.y, pickup.radius + 8)).toBe(false);
+        }
+      }
+
+      expect(`${firstPickup.x},${firstPickup.y}`).not.toBe(`${secondPickup.x},${secondPickup.y}`);
+    } finally {
+      Math.random = originalRandom;
+    }
+  });
+
+  it("keeps pickup respawn fallback out of blocked map zones", () => {
+    const originalRandom = Math.random;
+
+    try {
+      Math.random = () => 0;
+      const state = createInitialGameState();
+      removePickups(state);
+      state.storm.centerX = 700;
+      state.storm.centerY = 390;
+      state.storm.radius = 900;
+
+      for (const entity of Object.values(state.entities)) {
+        if (entity.kind === "player" || entity.kind === "bot") {
+          entity.x = 24;
+          entity.y = 24;
+          entity.fireCooldownMs = 90_000;
+          entity.aiThinkMs = 90_000;
+        }
+        if (entity.kind === "pve") {
+          entity.alive = false;
+        }
+      }
+
+      stepSimulation(state, emptyInput, 3_100);
+
+      const respawnedPickups = alivePickups(state).filter((pickup) => pickup.id.startsWith("respawn_"));
+      expect(respawnedPickups.length).toBeGreaterThan(0);
+      for (const pickup of respawnedPickups) {
+        expect(collidesForMovement(pickup, pickup.x, pickup.y, pickup.radius + 8)).toBe(false);
+        expect(`${pickup.x},${pickup.y}`).not.toBe("700,390");
+      }
+    } finally {
+      Math.random = originalRandom;
+    }
+  });
+
   it("randomizes initial fighter spawns between safe positions", () => {
     const originalRandom = Math.random;
 

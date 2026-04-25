@@ -41,6 +41,8 @@ interface EntityView {
   sprite: Phaser.GameObjects.Sprite;
   label?: Phaser.GameObjects.Text;
   bar?: Phaser.GameObjects.Graphics;
+  playerLocatorRing?: Phaser.GameObjects.Graphics;
+  playerLocatorArrow?: Phaser.GameObjects.Text;
   lastX: number;
   lastY: number;
   lastHealth: number;
@@ -615,12 +617,29 @@ export class BattleScene extends Phaser.Scene {
     }
     if (entity.kind === "player" || entity.kind === "bot") {
       sprite.setScale(0.72);
+      const isPlayer = entity.id === this.state.playerId;
+      if (isPlayer) {
+        const locatorRing = this.add.graphics();
+        locatorRing.setPosition(0, 0);
+        const locatorArrow = this.add.text(0, -78, "▼ 你", {
+          fontFamily: "PingFang SC, Microsoft YaHei, Noto Sans SC, sans-serif",
+          fontSize: "18px",
+          color: "#ffe86a",
+          stroke: "#241300",
+          strokeThickness: 5
+        });
+        locatorArrow.setOrigin(0.5, 1);
+        container.addAt(locatorRing, 0);
+        container.add(locatorArrow);
+        view.playerLocatorRing = locatorRing;
+        view.playerLocatorArrow = locatorArrow;
+      }
       const label = this.add.text(0, -48, entity.label ?? "", {
         fontFamily: "PingFang SC, Microsoft YaHei, Noto Sans SC, sans-serif",
-        fontSize: "13px",
-        color: "#f8ffe7",
-        stroke: "#172019",
-        strokeThickness: 3
+        fontSize: isPlayer ? "15px" : "13px",
+        color: isPlayer ? "#ffe86a" : "#f8ffe7",
+        stroke: isPlayer ? "#241300" : "#172019",
+        strokeThickness: isPlayer ? 5 : 3
       });
       label.setOrigin(0.5, 1);
       const bar = this.add.graphics();
@@ -657,6 +676,10 @@ export class BattleScene extends Phaser.Scene {
       if (entity.aimAngle !== undefined) {
         view.sprite.setFlipX(Math.cos(entity.aimAngle) < 0);
       }
+    }
+
+    if (view.playerLocatorRing || view.playerLocatorArrow) {
+      this.renderPlayerLocator(view, this.time.now);
     }
 
     if (
@@ -741,6 +764,22 @@ export class BattleScene extends Phaser.Scene {
     const type = entity.pveType ?? "bat";
     sprite.setScale(scaleByType[type]);
     sprite.clearTint();
+  }
+
+  private renderPlayerLocator(view: EntityView, timeMs: number) {
+    const pulse = 0.5 + Math.abs(Math.sin(timeMs / 230)) * 0.5;
+    if (view.playerLocatorRing) {
+      view.playerLocatorRing.clear();
+      view.playerLocatorRing.lineStyle(5, 0x251100, 0.8);
+      view.playerLocatorRing.strokeEllipse(0, -5, 58 + pulse * 10, 24 + pulse * 5);
+      view.playerLocatorRing.lineStyle(3, 0xffe86a, 0.78 + pulse * 0.2);
+      view.playerLocatorRing.strokeEllipse(0, -5, 50 + pulse * 12, 18 + pulse * 6);
+    }
+    if (view.playerLocatorArrow) {
+      view.playerLocatorArrow.setY(-76 - pulse * 8);
+      view.playerLocatorArrow.setAlpha(0.82 + pulse * 0.18);
+      view.playerLocatorArrow.setScale(1 + pulse * 0.08);
+    }
   }
 
   private renderHealthBar(graphics: Phaser.GameObjects.Graphics, entity: EntityState) {

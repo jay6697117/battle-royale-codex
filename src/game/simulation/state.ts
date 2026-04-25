@@ -122,6 +122,7 @@ const PICKUP_RADIUS = 16;
 const XP_THRESHOLDS = [0, 40, 95, 165, 250, 350, 470, 610, 770, 950];
 const PVE_SPAWN_CLEARANCE = 40;
 const PICKUP_SPAWN_CLEARANCE = 8;
+const PICKUP_SAFE_RADIUS = PICKUP_RADIUS + PICKUP_SPAWN_CLEARANCE;
 const PICKUP_RESPAWN_DELAY_MS = 3_000;
 const PICKUP_RESPAWN_COOLDOWN_MS = 8_000;
 const PICKUP_RESPAWN_MIN_COUNT = 2;
@@ -511,11 +512,19 @@ const createPve = (id: string, pveType: PveType, x: number, y: number): EntitySt
   };
 };
 
-const createInitialPickups = (): EntityState[] =>
-  INITIAL_PICKUP_SPAWNS.map((spawn) => createPickup(spawn.id, spawn.pickupType, spawn.x, spawn.y));
+const createInitialPickups = (): EntityState[] => {
+  const positions = shuffled(INITIAL_PICKUP_SPAWNS)
+    .map((spawn) => findSafeSpawnPosition(spawn.x, spawn.y, PICKUP_RADIUS, PICKUP_SPAWN_CLEARANCE, { kind: "pickup" }))
+    .filter(isSafePickupPosition);
+
+  return INITIAL_PICKUP_SPAWNS.map((spawn, index) => {
+    const position = positions[index % positions.length] ?? findFirstSafePickupPosition();
+    return createPickup(spawn.id, spawn.pickupType, position.x, position.y);
+  });
+};
 
 const createPickup = (id: string, pickupType: PickupType, x: number, y: number): EntityState => {
-  const position = findSafeSpawnPosition(x, y, PICKUP_RADIUS, PICKUP_SPAWN_CLEARANCE, { kind: "pickup" });
+  const position = findSafePickupSpawnPosition(x, y);
   return {
     id,
     kind: "pickup",
@@ -527,6 +536,41 @@ const createPickup = (id: string, pickupType: PickupType, x: number, y: number):
     ageMs: 0
   };
 };
+
+const findSafePickupSpawnPosition = (x: number, y: number): SpawnPosition => {
+  const position = findSafeSpawnPosition(x, y, PICKUP_RADIUS, PICKUP_SPAWN_CLEARANCE, { kind: "pickup" });
+  if (isSafePickupPosition(position)) {
+    return position;
+  }
+  return findFirstSafePickupPosition();
+};
+
+const findFirstSafePickupPosition = (): SpawnPosition => {
+  for (const spawn of shuffled(INITIAL_PICKUP_SPAWNS)) {
+    const position = findSafeSpawnPosition(spawn.x, spawn.y, PICKUP_RADIUS, PICKUP_SPAWN_CLEARANCE, { kind: "pickup" });
+    if (isSafePickupPosition(position)) {
+      return position;
+    }
+  }
+
+  for (let y = PICKUP_SAFE_RADIUS; y <= WORLD_HEIGHT - PICKUP_SAFE_RADIUS; y += PICKUP_SAFE_RADIUS * 2) {
+    for (let x = PICKUP_SAFE_RADIUS; x <= WORLD_WIDTH - PICKUP_SAFE_RADIUS; x += PICKUP_SAFE_RADIUS * 2) {
+      const position = { x, y };
+      if (isSafePickupPosition(position)) {
+        return position;
+      }
+    }
+  }
+
+  throw new Error("No safe pickup spawn position found");
+};
+
+const isSafePickupPosition = (position: SpawnPosition) =>
+  position.x >= PICKUP_SAFE_RADIUS &&
+  position.x <= WORLD_WIDTH - PICKUP_SAFE_RADIUS &&
+  position.y >= PICKUP_SAFE_RADIUS &&
+  position.y <= WORLD_HEIGHT - PICKUP_SAFE_RADIUS &&
+  !collidesForMovement({ kind: "pickup" }, position.x, position.y, PICKUP_SAFE_RADIUS);
 
 const findSafeSpawnPosition = (
   x: number,
@@ -917,11 +961,11 @@ const respawnPickupCount = (state: GameState) => {
 const findRandomPickupRespawnPosition = (state: GameState, spawnedPositions: Array<{ x: number; y: number }>) => {
   for (let attempt = 0; attempt < PICKUP_RESPAWN_ATTEMPTS; attempt += 1) {
     const angle = Math.random() * Math.PI * 2;
-    const radius = Math.sqrt(Math.random()) * Math.max(0, state.storm.radius - PICKUP_RADIUS - PICKUP_SPAWN_CLEARANCE);
+    const radius = Math.sqrt(Math.random()) * Math.max(0, state.storm.radius - PICKUP_SAFE_RADIUS);
     const candidate = clampToWorld(
       state.storm.centerX + Math.cos(angle) * radius,
       state.storm.centerY + Math.sin(angle) * radius,
-      PICKUP_RADIUS + PICKUP_SPAWN_CLEARANCE
+      PICKUP_SAFE_RADIUS
     );
 
     if (isValidPickupRespawnPosition(state, candidate.x, candidate.y, spawnedPositions)) {
@@ -933,14 +977,21 @@ const findRandomPickupRespawnPosition = (state: GameState, spawnedPositions: Arr
 };
 
 const fallbackPickupRespawnPosition = (state: GameState, spawnedPositions: Array<{ x: number; y: number }>) => {
-  for (let offset = 0; offset < INITIAL_PICKUP_SPAWNS.length; offset += 1) {
-    const spawn = INITIAL_PICKUP_SPAWNS[(state.nextEntityId + offset) % INITIAL_PICKUP_SPAWNS.length];
-    if (spawn && isValidPickupRespawnPosition(state, spawn.x, spawn.y, spawnedPositions)) {
+  for (const spawn of shuffled(INITIAL_PICKUP_SPAWNS)) {
+    if (isValidPickupRespawnPosition(state, spawn.x, spawn.y, spawnedPositions)) {
       return { x: spawn.x, y: spawn.y };
     }
   }
 
-  return { x: state.storm.centerX, y: state.storm.centerY };
+  for (let y = PICKUP_SAFE_RADIUS; y <= WORLD_HEIGHT - PICKUP_SAFE_RADIUS; y += PICKUP_SAFE_RADIUS * 2) {
+    for (let x = PICKUP_SAFE_RADIUS; x <= WORLD_WIDTH - PICKUP_SAFE_RADIUS; x += PICKUP_SAFE_RADIUS * 2) {
+      if (isValidPickupRespawnPosition(state, x, y, spawnedPositions)) {
+        return { x, y };
+      }
+    }
+  }
+
+  throw new Error("No safe pickup respawn position found");
 };
 
 const isValidPickupRespawnPosition = (
@@ -949,7 +1000,7 @@ const isValidPickupRespawnPosition = (
   y: number,
   spawnedPositions: Array<{ x: number; y: number }>
 ) => {
-  const safeRadius = PICKUP_RADIUS + PICKUP_SPAWN_CLEARANCE;
+  const safeRadius = PICKUP_SAFE_RADIUS;
   const dx = x - state.storm.centerX;
   const dy = y - state.storm.centerY;
   if (Math.hypot(dx, dy) > state.storm.radius - safeRadius) {

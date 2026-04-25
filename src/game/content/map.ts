@@ -66,12 +66,12 @@ export const SOLID_ZONES: RectZone[] = [...STRUCTURE_ZONES, ...PROP_SOLID_ZONES,
 export const OBSTACLES = SOLID_ZONES;
 
 export const WATER_ZONES: RectZone[] = [
-  { id: "southwest_pond_top", x: 275, y: 640, width: 310, height: 56 },
-  { id: "southwest_pond_left", x: 270, y: 696, width: 168, height: 139 },
-  { id: "southwest_pond_lower", x: 270, y: 835, width: 245, height: 130 },
-  { id: "north_pond_cap", x: 1165, y: 92, width: 90, height: 33 },
-  { id: "north_pond_main", x: 1105, y: 125, width: 253, height: 120 },
-  { id: "north_pond_lower", x: 1105, y: 245, width: 175, height: 75 }
+  { id: "southwest_pond_upper_left", x: 290, y: 642, width: 152, height: 80 },
+  { id: "southwest_pond_upper_right", x: 305, y: 700, width: 313, height: 58 },
+  { id: "southwest_pond_middle", x: 289, y: 735, width: 262, height: 112 },
+  { id: "southwest_pond_lower", x: 289, y: 840, width: 268, height: 136 },
+  { id: "north_pond_upper", x: 1146, y: 126, width: 247, height: 116 },
+  { id: "north_pond_lower", x: 1146, y: 238, width: 164, height: 86 }
 ];
 
 export const FOLIAGE_ZONES: RectZone[] = [

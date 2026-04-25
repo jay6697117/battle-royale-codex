@@ -6,14 +6,20 @@ describe("map collision semantics", () => {
     expect(collidesForMovement({ kind: "player" }, 340, 720, 17)).toBe(true);
     expect(collidesForMovement({ kind: "bot" }, 340, 720, 17)).toBe(true);
     expect(collidesForMovement({ kind: "pve", pveType: "slime" }, 340, 720, 20)).toBe(true);
+    expect(collidesForMovement({ kind: "pve", pveType: "wolf" }, 520, 760, 20)).toBe(true);
+    expect(collidesForMovement({ kind: "pve", pveType: "spitter" }, 500, 880, 20)).toBe(true);
+    expect(collidesForMovement({ kind: "pve", pveType: "golem" }, 1380, 170, 24)).toBe(true);
     expect(collidesForMovement({ kind: "pve", pveType: "bat" }, 340, 720, 18)).toBe(false);
+    expect(collidesForMovement({ kind: "pve", pveType: "bat" }, 1380, 170, 18)).toBe(false);
   });
 
-  it("keeps pond collision aligned to the visible L-shaped water", () => {
+  it("keeps pond collision aligned to the visible water in the generated arena", () => {
     expect(collidesForMovement({ kind: "player" }, 340, 720, 17)).toBe(true);
-    expect(collidesForMovement({ kind: "player" }, 520, 760, 17)).toBe(false);
+    expect(collidesForMovement({ kind: "player" }, 520, 760, 17)).toBe(true);
     expect(collidesForMovement({ kind: "player" }, 500, 880, 17)).toBe(true);
-    expect(collidesForMovement({ kind: "player" }, 1320, 280, 17)).toBe(false);
+    expect(collidesForMovement({ kind: "player" }, 1380, 170, 17)).toBe(true);
+    expect(collidesForMovement({ kind: "player" }, 1148, 300, 17)).toBe(true);
+    expect(collidesForMovement({ kind: "player" }, 1350, 280, 17)).toBe(false);
   });
 
   it("lets bullets cross ponds and foliage but blocks them on solid cover", () => {

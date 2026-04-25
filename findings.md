@@ -196,5 +196,8 @@
 
 ## Current Discoveries
 - User screenshot shows the player inside the southwest pond after the regenerated background, so visible water is larger/differently shaped than the old `WATER_ZONES` collision rectangles.
-- Existing `collidesForMovement` semantics should already block player/bot/non-bat PvE on `WATER_ZONES`; if tests pass but screenshot fails, the fix should align collision zones/spawn safety to the new visible water.
-- The user also cannot quickly find their own character after restart; a player-only high-contrast visual marker is needed.
+- Existing `collidesForMovement` semantics already block player/bot/non-bat PvE on `WATER_ZONES`; the bug was visual/collision mismatch, not missing movement collision calls.
+- Automatic color-bound audit of the current v2 `arena-ground.png` found visible water around southwest pond `x=289..617, y=642..976` and north pond `x=1146..1392, y=126..323`, both outside parts of the old `WATER_ZONES`.
+- `WATER_ZONES` were expanded into several rectangles that cover the generated ponds while keeping nearby dry land walkable.
+- `map.test.ts` now checks player, bot, slime, wolf, spitter, and golem are blocked by visible water, while bat-type PvE can still cross and projectiles still ignore water.
+- Player visibility is fixed in `BattleScene.ts` with a player-only gold pulse ring, a `▼ 你` marker above the player, and brighter own label styling.

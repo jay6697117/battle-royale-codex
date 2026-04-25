@@ -74,6 +74,22 @@ const HUD_UPDATE_INTERVAL_MS = 100;
 const STORM_GRAPHICS_UPDATE_INTERVAL_MS = 83;
 const STORM_RADIUS_REDRAW_THRESHOLD = 1.5;
 
+type AudioCue =
+  | "start"
+  | "restart"
+  | "slot"
+  | "shoot"
+  | "hit"
+  | "pickup"
+  | "loot"
+  | "heal"
+  | "shield"
+  | "xp"
+  | "levelup"
+  | "elimination"
+  | "win"
+  | "loss";
+
 export class BattleScene extends Phaser.Scene {
   private state!: GameState;
   private hud!: HudController;
@@ -91,6 +107,10 @@ export class BattleScene extends Phaser.Scene {
   private matchStarted = false;
   private suppressPointerInput = false;
   private lastEventId = 0;
+  private lastPhase: GameState["phase"] = "playing";
+  private audioContext?: AudioContext;
+  private audioGain?: GainNode;
+  private audioUnlocked = false;
   private lastHudUpdateMs = Number.NEGATIVE_INFINITY;
   private lastStormGraphicsUpdateMs = Number.NEGATIVE_INFINITY;
   private lastStormGraphicsRadius = Number.NaN;
@@ -138,6 +158,7 @@ export class BattleScene extends Phaser.Scene {
     this.renderStorm(time);
     this.renderEntities(entities);
     this.renderEvents();
+    this.renderPhaseAudio();
     this.updateHud(entities, time);
   }
 
@@ -169,6 +190,7 @@ export class BattleScene extends Phaser.Scene {
 
     this.input.mouse?.disableContextMenu();
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      this.unlockAudio();
       if (!this.matchStarted) {
         this.startMatch();
         return;
@@ -181,6 +203,7 @@ export class BattleScene extends Phaser.Scene {
 
   private collectInput(): InputFrame {
     if (!this.matchStarted && Phaser.Input.Keyboard.JustDown(this.keys.start)) {
+      this.unlockAudio();
       this.startMatch();
     }
     if (!this.matchStarted) {
@@ -189,6 +212,9 @@ export class BattleScene extends Phaser.Scene {
       return frame;
     }
 
+    this.unlockAudioFromKeyboard();
+
+    const previousSlot = this.selectedSlot;
     if (Phaser.Input.Keyboard.JustDown(this.keys.slot1)) {
       this.selectedSlot = 1;
     }
@@ -206,6 +232,9 @@ export class BattleScene extends Phaser.Scene {
     }
     if (Phaser.Input.Keyboard.JustDown(this.keys.weaponCycle)) {
       this.selectedSlot = this.nextWeaponSlot(this.selectedSlot);
+    }
+    if (this.selectedSlot !== previousSlot) {
+      this.playAudioCue("slot");
     }
     if (Phaser.Input.Keyboard.JustDown(this.keys.use)) {
       this.useItemQueued = true;
@@ -236,8 +265,10 @@ export class BattleScene extends Phaser.Scene {
     if (this.matchStarted) {
       return;
     }
+    this.unlockAudio();
     this.matchStarted = true;
     this.suppressPointerInput = true;
+    this.playAudioCue("start");
     this.forceHudUpdate(false);
   }
 
@@ -275,6 +306,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private restartMatch() {
+    this.playAudioCue("restart");
     for (const view of this.entityViews.values()) {
       view.container.destroy(true);
     }
@@ -285,6 +317,7 @@ export class BattleScene extends Phaser.Scene {
     this.matchStarted = false;
     this.suppressPointerInput = false;
     this.lastEventId = 0;
+    this.lastPhase = "playing";
     this.lastHudUpdateMs = Number.NEGATIVE_INFINITY;
     this.lastStormGraphicsUpdateMs = Number.NEGATIVE_INFINITY;
     this.lastStormGraphicsRadius = Number.NaN;
@@ -800,9 +833,163 @@ export class BattleScene extends Phaser.Scene {
   private renderEvents() {
     const events = this.state.events.filter((event) => event.id > this.lastEventId);
     for (const event of events) {
+      this.playAudioCueForEvent(event);
       this.spawnEventFx(event);
       this.lastEventId = Math.max(this.lastEventId, event.id);
     }
+  }
+
+  private renderPhaseAudio() {
+    if (this.state.phase === this.lastPhase) {
+      return;
+    }
+    this.lastPhase = this.state.phase;
+    if (this.state.phase === "won") {
+      this.playAudioCue("win");
+    } else if (this.state.phase === "lost") {
+      this.playAudioCue("loss");
+    }
+  }
+
+  private playAudioCueForEvent(event: GameEvent) {
+    this.playAudioCue(event.type);
+  }
+
+  private unlockAudioFromKeyboard() {
+    if (this.audioUnlocked) {
+      return;
+    }
+    if (
+      this.keys.slot1.isDown ||
+      this.keys.slot2.isDown ||
+      this.keys.slot3.isDown ||
+      this.keys.slot4.isDown ||
+      this.keys.slot5.isDown ||
+      this.keys.weaponCycle.isDown ||
+      this.keys.use.isDown ||
+      this.keys.restart.isDown
+    ) {
+      this.unlockAudio();
+    }
+  }
+
+  private unlockAudio() {
+    const context = this.getAudioContext();
+    if (!context) {
+      return;
+    }
+    if (context.state === "suspended") {
+      void context.resume().then(() => {
+        this.audioUnlocked = true;
+      });
+      return;
+    }
+    this.audioUnlocked = true;
+  }
+
+  private playAudioCue(cue: AudioCue) {
+    const context = this.getAudioContext();
+    if (!context || !this.audioGain || !this.audioUnlocked || context.state !== "running") {
+      return;
+    }
+
+    const now = context.currentTime + 0.01;
+    switch (cue) {
+      case "start":
+        this.playTone(392, now, 0.08, "sine", 0.1);
+        this.playTone(588, now + 0.07, 0.1, "sine", 0.1);
+        this.playTone(784, now + 0.15, 0.16, "triangle", 0.12);
+        break;
+      case "restart":
+        this.playTone(330, now, 0.08, "triangle", 0.1);
+        this.playTone(247, now + 0.06, 0.08, "triangle", 0.08);
+        this.playTone(392, now + 0.14, 0.12, "sine", 0.1);
+        break;
+      case "slot":
+        this.playTone(760, now, 0.045, "square", 0.045);
+        break;
+      case "shoot":
+        this.playTone(118, now, 0.055, "sawtooth", 0.13);
+        this.playTone(248, now, 0.035, "square", 0.05);
+        break;
+      case "hit":
+        this.playTone(176, now, 0.07, "square", 0.1);
+        this.playTone(72, now + 0.015, 0.08, "sine", 0.08);
+        break;
+      case "pickup":
+        this.playTone(680, now, 0.07, "triangle", 0.1);
+        this.playTone(1_020, now + 0.055, 0.1, "sine", 0.1);
+        break;
+      case "loot":
+        this.playTone(440, now, 0.1, "triangle", 0.08);
+        this.playTone(660, now + 0.08, 0.12, "triangle", 0.09);
+        break;
+      case "heal":
+        this.playTone(523, now, 0.12, "sine", 0.08);
+        this.playTone(659, now + 0.09, 0.14, "sine", 0.08);
+        this.playTone(784, now + 0.18, 0.18, "sine", 0.07);
+        break;
+      case "shield":
+        this.playTone(932, now, 0.09, "triangle", 0.08);
+        this.playTone(1_244, now + 0.06, 0.14, "sine", 0.07);
+        break;
+      case "xp":
+        this.playTone(880, now, 0.055, "sine", 0.055);
+        this.playTone(1_176, now + 0.045, 0.075, "triangle", 0.055);
+        break;
+      case "levelup":
+        this.playTone(523, now, 0.08, "triangle", 0.09);
+        this.playTone(659, now + 0.08, 0.08, "triangle", 0.09);
+        this.playTone(784, now + 0.16, 0.09, "triangle", 0.1);
+        this.playTone(1_047, now + 0.24, 0.2, "sine", 0.12);
+        break;
+      case "elimination":
+        this.playTone(196, now, 0.1, "sawtooth", 0.1);
+        this.playTone(147, now + 0.09, 0.12, "sawtooth", 0.09);
+        this.playTone(98, now + 0.2, 0.18, "sine", 0.08);
+        break;
+      case "win":
+        this.playTone(523, now, 0.12, "triangle", 0.1);
+        this.playTone(659, now + 0.11, 0.12, "triangle", 0.1);
+        this.playTone(784, now + 0.22, 0.13, "triangle", 0.11);
+        this.playTone(1_047, now + 0.35, 0.28, "sine", 0.13);
+        break;
+      case "loss":
+        this.playTone(330, now, 0.16, "triangle", 0.09);
+        this.playTone(247, now + 0.14, 0.18, "triangle", 0.08);
+        this.playTone(196, now + 0.3, 0.22, "sine", 0.08);
+        break;
+    }
+  }
+
+  private getAudioContext() {
+    if (!this.audioContext) {
+      this.audioContext = new AudioContext();
+      this.audioGain = this.audioContext.createGain();
+      this.audioGain.gain.value = 0.42;
+      this.audioGain.connect(this.audioContext.destination);
+    }
+    return this.audioContext;
+  }
+
+  private playTone(frequency: number, startTime: number, duration: number, type: OscillatorType, volume: number) {
+    const context = this.audioContext;
+    const output = this.audioGain;
+    if (!context || !output) {
+      return;
+    }
+
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(frequency, startTime);
+    gain.gain.setValueAtTime(0.0001, startTime);
+    gain.gain.exponentialRampToValueAtTime(volume, startTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+    oscillator.connect(gain);
+    gain.connect(output);
+    oscillator.start(startTime);
+    oscillator.stop(startTime + duration + 0.02);
   }
 
   private spawnEventFx(event: GameEvent) {

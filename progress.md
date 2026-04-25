@@ -233,3 +233,5 @@ Original prompt: /Users/zhangjinhui/Desktop/battle-royale-codex/game.png
 - Stopped the local Vite dev server after validation.
 - Applied late team guidance: mobile controls now only show on coarse-pointer devices during active gameplay, and hide on start/end states.
 - Revalidated after visibility change: `npm run typecheck` and `npm run build` passed.
+- Updated mobile actions per user correction: removed the separate use-item button; the `切换` button cycles slots 1-5, and `开火` shoots weapon slots or uses current item slot.
+- Revalidated two-button mobile flow: slot cycle reaches shield/medkit, fire uses shield and medkit, cycle wraps to weapon, and fire shoots weapon; screenshot saved to `output/mobile-controls-two-buttons-smoke.png`.

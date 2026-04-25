@@ -922,12 +922,10 @@ body,
   right: calc(22px + env(safe-area-inset-right));
   bottom: calc(22px + env(safe-area-inset-bottom));
   display: grid;
-  grid-template-columns: repeat(2, auto);
-  grid-template-areas:
-    "weapon fire"
-    "item fire";
-  align-items: center;
-  gap: 10px;
+  grid-template-columns: auto auto;
+  grid-template-areas: "cycle fire";
+  align-items: end;
+  gap: 12px;
   pointer-events: auto;
 }
 
@@ -971,12 +969,8 @@ body,
     linear-gradient(180deg, rgba(255, 96, 78, 0.96), rgba(115, 25, 30, 0.94));
 }
 
-.mobile-button-weapon {
-  grid-area: weapon;
-}
-
-.mobile-button-item {
-  grid-area: item;
+.mobile-button-cycle {
+  grid-area: cycle;
 }
 
 .mobile-button.is-pressed {

@@ -214,5 +214,5 @@
 - Mouse left button shoots only when selected slot is 1-3; right button and space queue item use.
 - `src/game/input/actions.ts` has no dash or interact field.
 - `src/game/simulation/state.ts` auto-collects pickups when the player overlaps a pickup, so a separate pickup button is unnecessary.
-- Best minimal mobile mapping: left virtual joystick drives `moveX/moveY`; right fire button sets `shooting`; smaller weapon button cycles slots 1-3; smaller item button selects/uses shield or medkit.
+- Final mobile mapping after user correction: left virtual joystick drives `moveX/moveY`; `切换` cycles slots 1-5; `开火` shoots weapon slots 1-3 or uses the currently selected item slot 4/5.
 - Quick fire taps must be queued until the next `collectInput` call, otherwise pointerdown/pointerup can both occur between simulation frames and the shot is lost.

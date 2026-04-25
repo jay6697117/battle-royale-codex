@@ -63,13 +63,13 @@ interface ControlKeys {
   slot3: Phaser.Input.Keyboard.Key;
   slot4: Phaser.Input.Keyboard.Key;
   slot5: Phaser.Input.Keyboard.Key;
-  weaponCycle: Phaser.Input.Keyboard.Key;
+  slotCycle: Phaser.Input.Keyboard.Key;
   use: Phaser.Input.Keyboard.Key;
   start: Phaser.Input.Keyboard.Key;
   restart: Phaser.Input.Keyboard.Key;
 }
 
-type MobileButtonId = "fire" | "weapon" | "item";
+type MobileButtonId = "fire" | "cycle";
 
 interface MobileControls {
   root: HTMLDivElement;
@@ -81,16 +81,15 @@ interface MobileControls {
   firePointerIds: Set<number>;
   buttonPointerIds: Partial<Record<MobileButtonId, number>>;
   fireQueued: boolean;
-  weaponCycleQueued: boolean;
-  useItemQueued: boolean;
+  slotCycleQueued: boolean;
 }
 
 interface MobileInputSnapshot {
   moveX: number;
   moveY: number;
-  shooting: boolean;
-  weaponCycle: boolean;
-  useItem: boolean;
+  fireHeld: boolean;
+  firePressed: boolean;
+  slotCycle: boolean;
 }
 
 const HUD_UPDATE_INTERVAL_MS = 100;
@@ -211,7 +210,7 @@ export class BattleScene extends Phaser.Scene {
       slot3: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.THREE),
       slot4: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FOUR),
       slot5: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FIVE),
-      weaponCycle: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E),
+      slotCycle: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E),
       use: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
       start: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER),
       restart: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R)
@@ -261,14 +260,14 @@ export class BattleScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(this.keys.slot5)) {
       this.selectedSlot = 5;
     }
-    if (Phaser.Input.Keyboard.JustDown(this.keys.weaponCycle) || mobileInput.weaponCycle) {
-      this.selectedSlot = this.nextWeaponSlot(this.selectedSlot);
+    if (Phaser.Input.Keyboard.JustDown(this.keys.slotCycle)) {
+      this.selectedSlot = this.nextSlot(this.selectedSlot);
     }
-    if (mobileInput.useItem) {
-      this.queueMobileItemUse();
+    if (mobileInput.slotCycle) {
+      this.selectedSlot = this.nextSlot(this.selectedSlot);
     }
-    if (mobileInput.shooting && this.selectedSlot > 3) {
-      this.selectedSlot = this.nextWeaponSlot(this.selectedSlot);
+    if (mobileInput.firePressed && this.selectedSlot > 3) {
+      this.useItemQueued = true;
     }
     if (this.selectedSlot !== previousSlot) {
       this.playAudioCue("slot");
@@ -288,7 +287,7 @@ export class BattleScene extends Phaser.Scene {
     const keyboardMoveY =
       (this.keys.down.isDown || this.keys.arrowDown.isDown ? 1 : 0) -
       (this.keys.up.isDown || this.keys.arrowUp.isDown ? 1 : 0);
-    const mobileShooting = mobileInput.shooting && this.selectedSlot <= 3;
+    const mobileShooting = (mobileInput.fireHeld || mobileInput.firePressed) && this.selectedSlot <= 3;
     const mobileAim = mobileShooting ? this.mobileAimTarget(mobileInput) : undefined;
     frame.moveX = this.clampAxis(keyboardMoveX + mobileInput.moveX);
     frame.moveY = this.clampAxis(keyboardMoveY + mobileInput.moveY);
@@ -317,9 +316,8 @@ export class BattleScene extends Phaser.Scene {
         <span class="mobile-joystick-knob"></span>
       </div>
       <div class="mobile-buttons" aria-label="移动端操作按钮">
-        <button class="mobile-button mobile-button-fire" type="button" data-mobile-action="fire" aria-label="开火"><strong>开火</strong><span>按住</span></button>
-        <button class="mobile-button mobile-button-weapon" type="button" data-mobile-action="weapon" aria-label="换枪"><strong>换枪</strong><span>E</span></button>
-        <button class="mobile-button mobile-button-item" type="button" data-mobile-action="item" aria-label="用药"><strong>用药</strong><span>护盾/医疗</span></button>
+        <button class="mobile-button mobile-button-cycle" type="button" data-mobile-action="cycle" aria-label="切换武器或道具"><strong>切换</strong><span>武器/道具</span></button>
+        <button class="mobile-button mobile-button-fire" type="button" data-mobile-action="fire" aria-label="开火或使用道具"><strong>开火</strong><span>射击/使用</span></button>
       </div>
     `;
     app.appendChild(root);
@@ -340,8 +338,7 @@ export class BattleScene extends Phaser.Scene {
       firePointerIds: new Set<number>(),
       buttonPointerIds: {},
       fireQueued: false,
-      weaponCycleQueued: false,
-      useItemQueued: false
+      slotCycleQueued: false
     };
 
     joystick.addEventListener("pointerdown", (event) => this.handleMobileJoystickDown(event));
@@ -430,11 +427,7 @@ export class BattleScene extends Phaser.Scene {
       controls.fireQueued = true;
       return;
     }
-    if (action === "weapon") {
-      controls.weaponCycleQueued = true;
-      return;
-    }
-    controls.useItemQueued = true;
+    controls.slotCycleQueued = true;
   }
 
   private handleMobileButtonUp(event: PointerEvent) {
@@ -456,42 +449,18 @@ export class BattleScene extends Phaser.Scene {
   private consumeMobileInput(): MobileInputSnapshot {
     const controls = this.mobileControls;
     if (!controls) {
-      return { moveX: 0, moveY: 0, shooting: false, weaponCycle: false, useItem: false };
+      return { moveX: 0, moveY: 0, fireHeld: false, firePressed: false, slotCycle: false };
     }
     const input = {
       moveX: controls.moveX,
       moveY: controls.moveY,
-      shooting: controls.firePointerIds.size > 0 || controls.fireQueued,
-      weaponCycle: controls.weaponCycleQueued,
-      useItem: controls.useItemQueued
+      fireHeld: controls.firePointerIds.size > 0,
+      firePressed: controls.fireQueued,
+      slotCycle: controls.slotCycleQueued
     };
     controls.fireQueued = false;
-    controls.weaponCycleQueued = false;
-    controls.useItemQueued = false;
+    controls.slotCycleQueued = false;
     return input;
-  }
-
-  private queueMobileItemUse() {
-    const player = this.state.entities[this.state.playerId];
-    const needsShield = (player?.shield ?? 0) < 60;
-    const needsHealth = (player?.health ?? 0) < (player?.maxHealth ?? 100);
-    if (needsShield && this.state.inventory.shieldPotions > 0) {
-      this.selectedSlot = 4;
-      this.useItemQueued = true;
-      return;
-    }
-    if (needsHealth && this.state.inventory.medkits > 0) {
-      this.selectedSlot = 5;
-      this.useItemQueued = true;
-      return;
-    }
-    if (this.state.inventory.shieldPotions > 0) {
-      this.selectedSlot = 4;
-      return;
-    }
-    if (this.state.inventory.medkits > 0) {
-      this.selectedSlot = 5;
-    }
   }
 
   private mobileAimTarget(input: MobileInputSnapshot) {
@@ -534,14 +503,8 @@ export class BattleScene extends Phaser.Scene {
     this.forceHudUpdate(false);
   }
 
-  private nextWeaponSlot(currentSlot: number) {
-    if (currentSlot === 1) {
-      return 2;
-    }
-    if (currentSlot === 2) {
-      return 3;
-    }
-    return 1;
+  private nextSlot(currentSlot: number) {
+    return currentSlot >= 5 ? 1 : currentSlot + 1;
   }
 
   private updateHud(entities: EntityState[], timeMs: number) {
@@ -603,8 +566,7 @@ export class BattleScene extends Phaser.Scene {
     controls.firePointerIds.clear();
     controls.buttonPointerIds = {};
     controls.fireQueued = false;
-    controls.weaponCycleQueued = false;
-    controls.useItemQueued = false;
+    controls.slotCycleQueued = false;
     controls.joystickKnob.style.transform = "translate(-50%, -50%)";
     for (const button of controls.root.querySelectorAll(".mobile-button")) {
       button.classList.remove("is-pressed");
@@ -1167,7 +1129,7 @@ export class BattleScene extends Phaser.Scene {
       this.keys.slot3.isDown ||
       this.keys.slot4.isDown ||
       this.keys.slot5.isDown ||
-      this.keys.weaponCycle.isDown ||
+      this.keys.slotCycle.isDown ||
       this.keys.use.isDown ||
       this.keys.restart.isDown
     ) {

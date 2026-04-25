@@ -87,27 +87,27 @@ export class HudController {
         ${this.renderSlot(1, "weapon-pistol", state.inventory.pistolAmmo, state.inventory.selectedSlot, {
           title: "手枪",
           purpose: "稳定的基础武器，适合中近距离持续输出。",
-          usage: "按 1 选择，瞄准敌人后按住左键射击。"
+          usage: "电脑按 1 直选或按 E 循环，鼠标瞄准后左键射击；手机用切换按钮选中后点开火。"
         })}
         ${this.renderSlot(2, "weapon-shotgun", state.inventory.shotgunAmmo, state.inventory.selectedSlot, {
           title: "霰弹枪",
           purpose: "近距离爆发伤害高，贴近敌人时更有效。",
-          usage: "按 2 选择，靠近目标后按住左键射击。"
+          usage: "电脑按 2 直选或按 E 循环，靠近目标后左键射击；手机用切换按钮选中后点开火。"
         })}
         ${this.renderSlot(3, "weapon-rifle", state.inventory.rifleAmmo, state.inventory.selectedSlot, {
           title: "步枪",
           purpose: "射程更远、单发伤害更高，适合远距离压制。",
-          usage: "按 3 选择，瞄准目标后按住左键射击。"
+          usage: "电脑按 3 直选或按 E 循环，鼠标瞄准后左键射击；手机用切换按钮选中后点开火。"
         })}
         ${this.renderSlot(4, "item-shield", state.inventory.shieldPotions, state.inventory.selectedSlot, {
           title: "护盾药水",
           purpose: "恢复 35 点护盾，护盾最多 60 点。",
-          usage: "按 4 选择，再按空格或右键使用。"
+          usage: "电脑按 4 直选或按 E 循环，再按空格/右键使用；手机选中后点开火使用。"
         })}
         ${this.renderSlot(5, "item-medkit", state.inventory.medkits, state.inventory.selectedSlot, {
           title: "医疗包",
           purpose: "恢复 38 点生命值，生命值不会超过上限。",
-          usage: "按 5 选择，再按空格或右键使用。"
+          usage: "电脑按 5 直选或按 E 循环，再按空格/右键使用；手机选中后点开火使用。"
         })}
       </div>
       ${state.phase !== "playing" ? this.renderEndState(state.phase) : ""}
@@ -250,22 +250,21 @@ export class HudController {
         </div>
         <div class="start-notice-grid">
           <section>
-            <h2>键盘操作</h2>
+            <h2>电脑操作</h2>
             <p><b>WASD / 方向键</b><span>移动角色</span></p>
             <p><b>鼠标</b><span>瞄准方向</span></p>
-            <p><b>左键</b><span>使用当前武器射击</span></p>
-            <p><b>E</b><span>在手枪、霰弹枪、步枪之间切换</span></p>
+            <p><b>左键</b><span>当前槽位是武器时射击</span></p>
+            <p><b>E</b><span>循环切换全部武器和道具</span></p>
             <p><b>1 - 5</b><span>直接选择武器或道具槽</span></p>
-            <p><b>空格 / 右键</b><span>使用护盾药水或医疗包</span></p>
-            <p><b>手机</b><span>左下摇杆移动，右下按钮开火、换枪、用药</span></p>
+            <p><b>空格 / 右键</b><span>当前槽位是道具时使用</span></p>
           </section>
           <section>
-            <h2>道具说明</h2>
-            <p><b>手枪</b><span>稳定基础武器，中近距离好用</span></p>
-            <p><b>霰弹枪</b><span>近距离爆发高，越贴近越强</span></p>
-            <p><b>步枪</b><span>射程远、单发伤害高</span></p>
-            <p><b>护盾药水</b><span>恢复护盾，先挡伤害</span></p>
-            <p><b>医疗包</b><span>恢复生命值，保命用</span></p>
+            <h2>手机操作</h2>
+            <p><b>左下摇杆</b><span>拖动控制角色移动</span></p>
+            <p><b>右下切换</b><span>循环切换武器和道具</span></p>
+            <p><b>右下开火</b><span>当前槽位是武器时射击</span></p>
+            <p><b>右下开火</b><span>当前槽位是道具时使用道具</span></p>
+            <p><b>槽位提示</b><span>点库存图标可查看每个武器和道具用途</span></p>
             <p><b>金币 / 经验</b><span>击败怪物和拾取奖励，提升战斗能力</span></p>
           </section>
         </div>

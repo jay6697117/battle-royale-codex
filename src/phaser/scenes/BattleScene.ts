@@ -154,6 +154,7 @@ export class BattleScene extends Phaser.Scene {
   private lastHudUpdateMs = Number.NEGATIVE_INFINITY;
   private lastStormGraphicsUpdateMs = Number.NEGATIVE_INFINITY;
   private lastStormGraphicsRadius = Number.NaN;
+  private mobileControls?: MobileControls;
 
   constructor() {
     super("BattleScene");

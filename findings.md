@@ -171,3 +171,18 @@
 - Accurate comparison montage saved at `output/water-reference-current-audit.png`.
 - First tuning pass made the water less glossy but too dark/flat, so a second pass restored muted blue contrast, shallow edge tint, sparse short ripples, fixed lily pads, and small aquatic plants.
 - Fixed comparison montage saved at `output/water-reference-fixed-audit.png`; current water is now closer to `game.png` with darker muted fill, thinner edges, and fewer highlights.
+
+---
+
+# Findings: Game.png-style Arena Ground Regeneration
+
+## Current Discoveries
+- `game.png` is a full gameplay screenshot; it should be used only as a style/layout reference because it includes HUD, characters, monsters, pickups, projectiles, storm edge, labels, and minimap.
+- `public/assets/maps/arena-ground.png` must remain 1920x1080 opaque RGB and is reused by both the Phaser ground layer and CSS minimap.
+- Current runtime already blocks grounded movement on `WATER_ZONES`, blocks movement/projectiles on `SOLID_ZONES`, and lets bullets cross water/foliage.
+- The generator should keep water and terrain baked into `arena-ground.png`, but not bake runtime-rendered ruins, props, barrels, or foliage patches.
+- Collision is code-driven from `src/game/content/map.ts`, not pixel-driven from the PNG. Visual water/stone changes must be kept aligned with `WATER_ZONES` and `STRUCTURE_ZONES`.
+- The accepted candidate contains terrain only: grass, water, subtle paths, small stones/flowers/grass detail, and no visible HUD/characters/monsters/pickups/walls/crates/barrels/chests.
+- The 1920x1080 gateway request failed because image dimensions must be divisible by 16, so the successful workflow is 1920x1088 generation followed by centered crop to 1920x1080.
+- Collision overlay review showed no `map.ts` adjustment was needed for the terrain-only version: water boxes still covered the ponds, and solid boxes were grass-only where runtime ruins/walls drew.
+- New user decision on 2026-04-25: switch to Scheme C, bake stone walls/ruins directly into `arena-ground.png`, disable runtime wall/ruin drawing, and keep `map.ts` collision unchanged.

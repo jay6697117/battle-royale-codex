@@ -320,6 +320,34 @@ def make_strip(frames: Iterable[Image.Image]) -> Image.Image:
     return sheet
 
 
+def remove_warm_muzzle_flash(subject: Image.Image) -> Image.Image:
+    source = subject.convert("RGBA")
+    pixels = source.load()
+    for y in range(source.height):
+        for x in range(source.width):
+            r, g, b, a = pixels[x, y]
+            if a > 10 and x > source.width * 0.5 and r > 150 and g > 105 and b < 120 and r - b > 70:
+                pixels[x, y] = (r, g, b, 0)
+    return source
+
+
+def add_cowboy_muzzle_flash(frame: Image.Image, index: int) -> Image.Image:
+    result = frame.copy().convert("RGBA")
+    draw = ImageDraw.Draw(result, "RGBA")
+    length = 14 + (index % 2) * 5
+    offset = (index % 3) - 1
+    draw.polygon(
+        [(72, 43 + offset), (72 + length, 38 + offset), (91, 45 + offset), (72 + length, 51 + offset)],
+        fill=rgba("#ffd84a", 210),
+    )
+    draw.polygon(
+        [(75, 44 + offset), (86, 42 + offset), (92, 45 + offset), (86, 48 + offset)],
+        fill=rgba("#fff6b0", 235),
+    )
+    draw.line((70, 45 + offset, 92, 45 + offset), fill=rgba("#ff9f2d", 190), width=2)
+    return result
+
+
 def add_soft_glow(subject: Image.Image, color: Color, radius: int, strength: int) -> Image.Image:
     alpha = subject.getchannel("A")
     glow_alpha = alpha.filter(ImageFilter.GaussianBlur(radius)).point(lambda value: min(255, int(value * strength / 100)))
@@ -591,10 +619,18 @@ def generate_characters() -> None:
     for role, role_poses in poses.items():
         for animation, (count, bobs, shifts, tint) in animation_specs.items():
             base = role_poses[animation]
+            trim_padding = 10
+            scale = 0.8
+            if role == "cowboy" and animation == "shoot":
+                base = remove_warm_muzzle_flash(base)
+                trim_padding = 5
+                scale = 0.86
             frames = [
-                make_sprite_frame(base, (96, 96), scale=0.8, anchor_y=0.78, dx=shifts[index], dy=bobs[index], tint=tint, min_margin=8, trim_padding=10)
+                make_sprite_frame(base, (96, 96), scale=scale, anchor_y=0.78, dx=shifts[index], dy=bobs[index], tint=tint, min_margin=8, trim_padding=trim_padding)
                 for index in range(count)
             ]
+            if role == "cowboy" and animation == "shoot":
+                frames = [add_cowboy_muzzle_flash(frame, index) for index, frame in enumerate(frames)]
             save_rgba(make_strip(frames), f"characters/{role}/{animation}.png")
 
 

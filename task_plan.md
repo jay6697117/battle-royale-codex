@@ -290,3 +290,38 @@ Make the current arena water look closer to `game.png`: muted compact blue ponds
 |---|---|---|
 | First water tuning pass became too flat and dark | 1 | Restored muted blue contrast, added shallow edge tint, and placed visible sparse ripples/lilies in water zones. |
 | New Vite dev server moved to port 5174 because 5173 was already in use | 1 | Re-ran Playwright validation against `http://127.0.0.1:5174/`. |
+
+---
+
+# Task Plan: Game.png-style Arena Ground Regeneration
+
+## Goal
+Regenerate `public/assets/maps/arena-ground.png` as a 1920x1080 terrain-only background closer to `game.png`, keeping grass/water/path detail in the background while leaving walls, crates, barrels, chests, foliage, characters, monsters, pickups, HUD, and storm overlays to runtime rendering. If visual terrain changes require it, synchronize `src/game/content/map.ts` collision rectangles so water blocks movement and stone walls block movement/projectiles consistently.
+
+## Current Status
+- User approved the next step after the collision feasibility analysis.
+- Existing uncommitted generated asset changes are present and must be preserved unless this task intentionally regenerates the same outputs.
+- Previous work established that `arena-ground.png` is opaque RGB and is used both by Phaser background rendering and the HUD minimap.
+
+## Phases
+
+| Phase | Status | Purpose | Output |
+|---|---|---|---|
+| 1. Planning and audit | complete | Record task context, re-check generator/collision/render constraints, and avoid overwriting unrelated work. | Updated planning files and targeted source reads. |
+| 2. Background regeneration | complete | Produce a better `arena-ground.png` using `game.png` style cues while keeping it terrain-only. | Regenerated 1920x1080 RGB map background. |
+| 3. Collision alignment | complete | Compare regenerated water/cover layout against `map.ts`; adjust only if visual layout changes. | Overlay confirmed no `map.ts` change is needed. |
+| 4. Validation | complete | Run relevant tests/build and browser screenshot check. | Tests/build passed; Playwright screenshots saved. |
+
+## Decisions
+- Superseded: the earlier terrain-only decision is replaced by the user's Scheme C request on 2026-04-25.
+- Bake stone walls/ruins into `arena-ground.png`, but still do not bake crates, barrels, chests, characters, monsters, pickups, HUD, or storm UI.
+- Keep runtime `MAP_FEATURES` responsible for grass/bush props and solid props, but skip runtime wall/ruin drawing to avoid duplicated walls.
+- Keep `collidesForMovement`/`collidesForProjectile` as the gameplay source of truth; do not remove `STRUCTURE_ZONES` collision.
+- Prefer updating the existing generator pipeline over replacing code with ad hoc image edits, so future regenerations remain reproducible.
+
+## Errors Encountered
+| Error | Attempt | Resolution |
+|---|---|---|
+| `${CLAUDE_PLUGIN_ROOT}` was empty for planning catchup script | 1 | Re-ran catchup using explicit skill path `/Users/zhangjinhui/.claude/skills/planning-with-files/scripts/session-catchup.py`. |
+| Image gateway rejected `1920x1080` because 1080 is not divisible by 16 | 1 | Use a divisible candidate size such as `1920x1088`, then crop/post-process to the required 1920x1080 asset size. |
+| Chrome DevTools MCP could not open the default profile because another browser instance was already running | 1 | Avoid repeating the same call; use an isolated context or Playwright browser validation instead. |

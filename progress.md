@@ -178,3 +178,22 @@ Original prompt: /Users/zhangjinhui/Desktop/battle-royale-codex/game.png
 - Browser validation used the current Vite server on port 5174 because 5173 was already occupied; screenshot saved to `output/water-visual-fix-play-5174.png`.
 - Browser console only showed Vite/Phaser startup messages and screenshot-related WebGL performance warnings.
 - Stopped the local Vite dev server after validation.
+
+---
+
+# Progress: Game.png-style Arena Ground Regeneration
+
+## 2026-04-25
+- User approved regenerating `arena-ground.png` using `game.png` as style reference, keeping water/grass in the background and walls/props/barrels under runtime `MAP_FEATURES` rendering.
+- Ran planning catchup; first `${CLAUDE_PLUGIN_ROOT}` command failed because the variable was empty, then explicit skill path succeeded and reported current-session context only.
+- Checked `git diff --stat`; it returned no stat output at that moment, so work continues from current planning files and known generated-asset state.
+- Read existing `task_plan.md`, `findings.md`, and `progress.md`; appended this task section instead of replacing older task history.
+- Generated `output/arena-ground-game-style-candidate-1920x1088.png` with `codex-gateway-imagegen` using current ground layout plus `game.png` style reference.
+- Cropped the candidate to the required 1920x1080 RGB asset and wrote `public/assets/maps/arena-ground.png`.
+- Created collision overlay audit `output/arena-ground-collision-audit.png`; water zones align with visible ponds and solid zones remain grass-only for runtime wall rendering.
+- Validation passed so far: `npm run test -- src/game/assets/asset-manifest.test.ts src/game/content/map.test.ts`, `npm run typecheck`, `npm run test`, and `npm run build`.
+- Started Vite dev server for browser validation; Chrome DevTools MCP default profile was locked, so browser verification used Playwright instead.
+- Browser validation passed on Vite port 5175 with no application console issues; screenshots saved to `output/arena-ground-game-style-start.png` and `output/arena-ground-game-style-play.png`.
+- Visual review confirmed the new terrain-only background works with runtime walls, bushes, props, enemies, pickups, HUD, and storm overlay.
+- User then selected Scheme C: bake stone walls/ruins into the background, disable runtime wall/ruin drawing, keep `map.ts` collision, and validate in browser using an agent team.
+- Created team `arena-baked-walls-team` with audit, implementation, and QA agents.

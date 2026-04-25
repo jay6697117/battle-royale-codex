@@ -57,7 +57,11 @@ export const PROP_SOLID_ZONES: RectZone[] = [
   { id: "north_chest", x: 658, y: 68, width: 64, height: 64 }
 ];
 
-export const SOLID_ZONES: RectZone[] = [...STRUCTURE_ZONES, ...PROP_SOLID_ZONES];
+export const BARREL_ZONES: RectZone[] = [
+  { id: "barrel_west", x: 365, y: 505, width: 64, height: 64 }
+];
+
+export const SOLID_ZONES: RectZone[] = [...STRUCTURE_ZONES, ...PROP_SOLID_ZONES, ...BARREL_ZONES];
 
 export const OBSTACLES = SOLID_ZONES;
 
@@ -88,7 +92,7 @@ export const MAP_FEATURES: MapFeature[] = [
   })),
   ...WATER_ZONES.map((zone) => ({ ...zone, kind: "water" as const })),
   ...FOLIAGE_ZONES.map((zone) => ({ ...zone, kind: "bush" as const })),
-  { id: "barrel_west", kind: "barrel", x: 365, y: 505, width: 42, height: 42 }
+  ...BARREL_ZONES.map((zone) => ({ ...zone, kind: "barrel" as const }))
 ];
 
 export const clampToWorld = (x: number, y: number, radius: number) => ({

@@ -347,11 +347,17 @@ export class BattleScene extends Phaser.Scene {
       }
       if (feature.kind === "crate" || feature.kind === "chest") {
         const texture = feature.kind === "chest" ? TextureKey.Chest : TextureKey.Crate;
-        this.add.image(feature.x + feature.width / 2, feature.y + feature.height / 2, texture).setDepth(25);
+        this.add
+          .image(feature.x + feature.width / 2, feature.y + feature.height / 2, texture)
+          .setDisplaySize(feature.width, feature.height)
+          .setDepth(25);
         continue;
       }
       if (feature.kind === "barrel") {
-        this.add.image(feature.x + feature.width / 2, feature.y + feature.height / 2, TextureKey.Barrel).setDepth(25);
+        this.add
+          .image(feature.x + feature.width / 2, feature.y + feature.height / 2, TextureKey.Barrel)
+          .setDisplaySize(feature.width, feature.height)
+          .setDepth(25);
         continue;
       }
       this.createRuin(feature.x, feature.y, feature.width, feature.height);
@@ -363,9 +369,12 @@ export class BattleScene extends Phaser.Scene {
     const rows = Math.max(1, Math.ceil(height / TILE_SIZE));
     for (let row = 0; row < rows; row += 1) {
       for (let col = 0; col < cols; col += 1) {
+        const tileWidth = Math.min(TILE_SIZE, width - col * TILE_SIZE);
+        const tileHeight = Math.min(TILE_SIZE, height - row * TILE_SIZE);
         const frame = row === 0 || col === 0 || row === rows - 1 || col === cols - 1 ? (col + row) % 4 : 4 + ((col + row) % 4);
         const tile = this.add.image(x + col * TILE_SIZE, y + row * TILE_SIZE, TextureKey.RuinsTiles, frame);
         tile.setOrigin(0, 0);
+        tile.setCrop(0, 0, tileWidth, tileHeight);
         tile.setDepth(18 + (y + row * TILE_SIZE) / 10_000);
       }
     }
@@ -388,21 +397,21 @@ export class BattleScene extends Phaser.Scene {
     this.stormSeaMask.setInvertAlpha(true);
 
     this.stormBackdrop = this.add.graphics();
-    this.stormBackdrop.setDepth(86);
+    this.stormBackdrop.setDepth(36);
     this.stormBackdrop.setMask(this.stormSeaMask);
 
     this.stormSea = this.add.tileSprite(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, WORLD_WIDTH, WORLD_HEIGHT, TextureKey.StormSea);
-    this.stormSea.setDepth(88);
+    this.stormSea.setDepth(37);
     this.stormSea.setAlpha(STORM_EDGE_PROFILE.outsideTextureAlpha);
     this.stormSea.setMask(this.stormSeaMask);
 
     this.stormLayer = this.add.graphics();
-    this.stormLayer.setDepth(91);
+    this.stormLayer.setDepth(46);
     for (let index = 0; index < STORM_EDGE_PROFILE.spriteCount; index += 1) {
       const edge = this.add.sprite(0, 0, TextureKey.StormEdge);
       edge.play(TextureKey.StormEdge);
-      edge.setDepth(93);
-      edge.setAlpha(0.34);
+      edge.setDepth(47);
+      edge.setAlpha(0.2);
       this.stormEdgeSprites.push(edge);
     }
   }
@@ -503,7 +512,7 @@ export class BattleScene extends Phaser.Scene {
       );
       edge.setRotation(angle + Math.PI / 2);
       edge.setScale(0.62 + (index % 4) * 0.07);
-      edge.setAlpha(0.14 + Math.abs(Math.sin(timeMs / 260 + index)) * 0.18);
+      edge.setAlpha(0.08 + Math.abs(Math.sin(timeMs / 260 + index)) * 0.12);
     }
   }
 
@@ -592,7 +601,7 @@ export class BattleScene extends Phaser.Scene {
   private createEntityView(entity: EntityState): EntityView {
     const texture = this.textureForEntity(entity);
     const sprite = this.add.sprite(0, 0, texture);
-    sprite.setOrigin(0.5, 0.72);
+    sprite.setOrigin(0.5, entity.kind === "projectile" ? 0.5 : 0.72);
     const container = this.add.container(entity.x, entity.y, [sprite]);
     container.setDepth(this.depthForEntity(entity));
 
@@ -639,6 +648,8 @@ export class BattleScene extends Phaser.Scene {
     if (entity.kind === "projectile") {
       view.sprite.setRotation(Math.atan2(entity.vy ?? 0, entity.vx ?? 1));
     } else if (entity.kind === "pve") {
+      const hurt = (entity.health ?? 0) < view.lastHealth;
+      this.playEntityAnimation(view, hurt ? this.hurtAnimationForPve(entity) : this.animationForPve(entity));
       view.sprite.setFlipX(Math.sin(this.time.now / 500 + entity.x) < 0);
     } else if (entity.kind === "player" || entity.kind === "bot") {
       const dx = entity.x - view.lastX;
@@ -691,6 +702,21 @@ export class BattleScene extends Phaser.Scene {
         return enemySheetKey("slime", "hop");
       default:
         return enemySheetKey("bat", "fly");
+    }
+  }
+
+  private hurtAnimationForPve(entity: EntityState) {
+    switch (entity.pveType) {
+      case "wolf":
+        return enemySheetKey("wolf", "hurt");
+      case "spitter":
+        return enemySheetKey("spitter", "squash");
+      case "golem":
+        return enemySheetKey("golem", "squash");
+      case "slime":
+        return enemySheetKey("slime", "squash");
+      default:
+        return enemySheetKey("bat", "hurt");
     }
   }
 

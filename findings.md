@@ -101,3 +101,18 @@
 - No `tools/remove_chroma_key.py` exists, so chroma-key removal should be added inside `tools/build_imagegen_assets.py` instead of depending on a missing script.
 - Map alignment must use all `WATER_ZONES`, `STRUCTURE_ZONES`, `FOLIAGE_ZONES`, `PROP_SOLID_ZONES`, and the west barrel from `src/game/content/map.ts`.
 - PLAN mismatch: “5 backpack icons” means the manifest’s 5 HUD item icons: pistol, shotgun, rifle, shield, medkit.
+
+---
+
+# Findings: Minimap and Water Visual Fix
+
+## Current Discoveries
+- Team `minimap-water-fix` has been created for this task.
+- Screenshot issue 1: the minimap/safe-zone ring is visually too dominant; the large circular frame, dark storm fill, and grid background make the top-right HUD feel like it is covering the playfield.
+- Screenshot issue 2: water appears as large blurred blue pools with hard rectangular/stepped silhouettes and limited shoreline blending, especially near land bridges and islands.
+- Minimap HTML is rendered in `src/ui/hud/HudController.ts`; CSS is in `src/styles.css`.
+- Current minimap CSS uses `width: clamp(170px, 13vw, 190px)`, circular clipping, a strong `minimap-frame.png`, radial fake water, grid lines, and 0.86 opacity.
+- `HudController.stormMiniStyle` maps storm circle into the minimap based on world dimensions; this is a HUD-only issue and should not change gameplay storm state.
+- Root cause for water: `public/assets/maps/arena-ground.png` already includes pond art, then `BattleScene.createWaterPatch` tiled `TextureKey.WaterTiles` over the same rectangular water features, creating blocky doubled-blue ponds.
+- Final fix keeps water collision zones unchanged, stops runtime water tile overlays, and improves `tools/build_imagegen_assets.py` so regenerated `arena-ground.png` has organic water masks, shoreline darkening, and small water highlights.
+- Final fix changes `.mini-map` from a large circular generated-grid UI to a smaller 16:9 thumbnail using the real arena-ground image, with a subtler storm circle and smaller dots.

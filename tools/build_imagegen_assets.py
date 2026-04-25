@@ -58,7 +58,7 @@ FOLIAGE_ZONES: list[Zone] = [
     (1540, 748, 128, 112),
 ]
 
-BARREL_ZONE: Zone = (365, 505, 42, 42)
+BARREL_ZONE: Zone = (365, 505, 64, 64)
 
 
 def rgba(hex_value: str, alpha: int = 255) -> Color:
@@ -179,6 +179,53 @@ def trim_alpha(image: Image.Image, padding: int = 4) -> Image.Image:
     return source.crop((left, top, right, bottom))
 
 
+def remove_detached_lower_artifacts(image: Image.Image) -> Image.Image:
+    source = image.convert("RGBA")
+    alpha = source.getchannel("A").point(lambda value: 255 if value > 10 else 0)
+    pixels = alpha.load()
+    width, height = source.size
+    visited: set[tuple[int, int]] = set()
+    components: list[tuple[int, Box, set[tuple[int, int]]]] = []
+
+    for start_y in range(height):
+        for start_x in range(width):
+            if pixels[start_x, start_y] == 0 or (start_x, start_y) in visited:
+                continue
+            stack = [(start_x, start_y)]
+            points: set[tuple[int, int]] = set()
+            left = right = start_x
+            top = bottom = start_y
+            while stack:
+                x, y = stack.pop()
+                if (x, y) in visited or pixels[x, y] == 0:
+                    continue
+                visited.add((x, y))
+                points.add((x, y))
+                left = min(left, x)
+                right = max(right, x)
+                top = min(top, y)
+                bottom = max(bottom, y)
+                for next_x, next_y in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+                    if 0 <= next_x < width and 0 <= next_y < height and (next_x, next_y) not in visited:
+                        stack.append((next_x, next_y))
+            components.append((len(points), (left, top, right + 1, bottom + 1), points))
+
+    if len(components) < 2:
+        return source
+
+    main_area, main_box, _ = max(components, key=lambda item: item[0])
+    _, _, _, main_bottom = main_box
+    cleaned_alpha = source.getchannel("A")
+    cleaned_pixels = cleaned_alpha.load()
+    for area, box, points in components:
+        _, top, _, _ = box
+        if top > main_bottom + 4 and area < main_area * 0.5:
+            for x, y in points:
+                cleaned_pixels[x, y] = 0
+    source.putalpha(cleaned_alpha)
+    return source
+
+
 def crop_box(image: Image.Image, box: Box, padding: int = 8) -> Image.Image:
     left, top, right, bottom = box
     return image.crop(
@@ -262,6 +309,7 @@ def make_sprite_frame(
     dy: int = 0,
     tint: Color | None = None,
 ) -> Image.Image:
+    subject = remove_detached_lower_artifacts(subject)
     frame = resize_contain(subject, frame_size, scale=scale, anchor_y=anchor_y)
     if tint:
         overlay = Image.new("RGBA", frame.size, tint)
@@ -336,10 +384,70 @@ def generate_environment() -> dict[str, Image.Image]:
             mask_draw.rounded_rectangle(box, radius=radius, fill=255)
         return mask.filter(ImageFilter.GaussianBlur(1.1))
 
-    water_mask = rounded_mask([rect_box(zone) for zone in WATER_ZONES], 18)
-    shore_mask = water_mask.filter(ImageFilter.MaxFilter(23)).filter(ImageFilter.GaussianBlur(2))
-    paste_material(ground, materials["dark_grass"], shore_mask, (0.78, 0.86, 0.72))
-    paste_material(ground, materials["water"], water_mask)
+    def organic_water_mask(boxes: list[Box]) -> Image.Image:
+        mask = Image.new("L", ground.size, 0)
+        mask_draw = ImageDraw.Draw(mask)
+        water_rng = random.Random(7317)
+        for box in boxes:
+            left, top, right, bottom = box
+            mask_draw.rounded_rectangle((left + 3, top + 3, right - 3, bottom - 3), radius=26, fill=255)
+            for _ in range(max(2, (right - left) // 110)):
+                width = water_rng.randint(34, 86)
+                height = water_rng.randint(24, 68)
+                x = water_rng.randint(left - 10, max(left - 9, right - width + 10))
+                y = water_rng.randint(top - 8, max(top - 7, bottom - height + 8))
+                mask_draw.ellipse((x, y, x + width, y + height), fill=255)
+            for _ in range(max(1, (right - left) // 150)):
+                width = water_rng.randint(24, 58)
+                height = water_rng.randint(20, 52)
+                side = water_rng.choice(["left", "right", "top", "bottom"])
+                if side == "left":
+                    x = left - width // 2
+                    y = water_rng.randint(top, max(top, bottom - height))
+                elif side == "right":
+                    x = right - width // 2
+                    y = water_rng.randint(top, max(top, bottom - height))
+                elif side == "top":
+                    x = water_rng.randint(left, max(left, right - width))
+                    y = top - height // 2
+                else:
+                    x = water_rng.randint(left, max(left, right - width))
+                    y = bottom - height // 2
+                mask_draw.ellipse((x, y, x + width, y + height), fill=0)
+        return mask.filter(ImageFilter.MaxFilter(5)).filter(ImageFilter.GaussianBlur(1.2)).point(lambda value: 255 if value > 96 else 0)
+
+    water_mask = organic_water_mask([rect_box(zone) for zone in WATER_ZONES])
+    shore_mask = water_mask.filter(ImageFilter.MaxFilter(37)).filter(ImageFilter.GaussianBlur(3.2))
+    paste_material(ground, materials["dark_grass"], shore_mask, (0.74, 0.85, 0.68))
+
+    water_surface = tile_material(materials["water"], ground.size, 7318)
+    water_surface = ImageEnhance.Color(water_surface).enhance(0.95)
+    water_surface = ImageEnhance.Contrast(water_surface).enhance(1.08)
+    ground.alpha_composite(Image.composite(water_surface, Image.new("RGBA", ground.size, (0, 0, 0, 0)), water_mask))
+
+    water_edge = ImageChops.subtract(water_mask, water_mask.filter(ImageFilter.MinFilter(13))).filter(ImageFilter.GaussianBlur(0.7))
+    edge_layer = Image.new("RGBA", ground.size, rgba("#052c42", 115))
+    edge_layer.putalpha(water_edge.point(lambda value: int(value * 0.7)))
+    ground.alpha_composite(edge_layer)
+
+    water_detail_layer = Image.new("RGBA", ground.size, (0, 0, 0, 0))
+    water_detail_draw = ImageDraw.Draw(water_detail_layer, "RGBA")
+    for _ in range(150):
+        x = rng.randint(250, 1370)
+        y = rng.randint(80, 970)
+        if water_mask.getpixel((x, y)) == 0:
+            continue
+        length = rng.randint(16, 46)
+        water_detail_draw.line((x, y, x + length, y + rng.randint(-2, 2)), fill=rgba("#7ee4ff", rng.randint(26, 70)), width=1)
+    for _ in range(26):
+        x = rng.randint(250, 1370)
+        y = rng.randint(80, 970)
+        if water_mask.getpixel((x, y)) == 0:
+            continue
+        water_detail_draw.ellipse((x, y, x + rng.randint(16, 38), y + rng.randint(5, 13)), fill=rgba("#44c5f0", rng.randint(18, 42)))
+    water_detail_alpha = ImageChops.multiply(water_detail_layer.getchannel("A"), water_mask)
+    water_detail_layer.putalpha(water_detail_alpha)
+    ground.alpha_composite(water_detail_layer)
 
     path_sets = [
         [(235, 145), (450, 190), (620, 320), (725, 520), (820, 820)],

@@ -27,13 +27,17 @@ describe("map collision semantics", () => {
     expect(collidesForMovement({ kind: "player" }, 710, 390, 17)).toBe(true);
   });
 
-  it("blocks fighters and bullets on every visible crate and chest", () => {
-    const solidProps = MAP_FEATURES.filter((feature) => feature.kind === "crate" || feature.kind === "chest");
+  it("blocks fighters and bullets on every visible solid prop", () => {
+    const solidProps = MAP_FEATURES.filter(
+      (feature) => feature.kind === "crate" || feature.kind === "chest" || feature.kind === "barrel"
+    );
 
     expect(solidProps.length).toBeGreaterThan(0);
     for (const prop of solidProps) {
       const centerX = prop.x + prop.width / 2;
       const centerY = prop.y + prop.height / 2;
+      expect(prop.width, prop.id).toBe(64);
+      expect(prop.height, prop.id).toBe(64);
       expect(collidesForMovement({ kind: "player" }, centerX, centerY, 17)).toBe(true);
       expect(collidesForProjectile(centerX, centerY, 5)).toBe(true);
     }

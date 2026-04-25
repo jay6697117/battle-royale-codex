@@ -64,7 +64,7 @@ export class HudController {
         </div>
         <div class="storm-timer ${hudOcclusion.miniMap ? "is-occluding" : ""}"><span></span>${this.formatTime(stormSeconds)}</div>
       </div>
-      <div class="progression-panel ${hudOcclusion.inventory ? "is-occluding" : ""}">
+      <div class="progression-panel ${hudOcclusion.progression ? "is-occluding" : ""}">
         <div class="progression-main"><strong>等级 ${state.progression.level}</strong><div class="xp-bar"><i style="width:${xpPercent}%"></i></div><span>${state.progression.xp}/${state.progression.xpToNextLevel}</span></div>
         <div class="progression-meta">
           <span>金币 ${state.inventory.coins}</span>
@@ -335,6 +335,7 @@ export class HudController {
       left: hasEntityInRegion(0, 0, 22, 34),
       topRight: hasEntityInRegion(84, 0, 100, 8),
       miniMap: hasEntityInRegion(82, 4, 100, 33),
+      progression: hasEntityInRegion(37, 0, 63, 13),
       inventory: hasEntityInRegion(31, 78, 69, 100)
     };
   }

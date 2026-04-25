@@ -128,3 +128,35 @@ Implement `/Users/zhangjinhui/Desktop/battle-royale-codex/PLAN.md`: regenerate a
 | Error | Attempt | Resolution |
 |---|---|---|
 | `${CLAUDE_PLUGIN_ROOT}` was empty for planning catchup script | 1 | Re-ran catchup using explicit skill path `/Users/zhangjinhui/.claude/skills/planning-with-files/scripts/session-catchup.py`. |
+
+---
+
+# Task Plan: Minimap and Water Visual Fix
+
+## Goal
+Fix the screenshot-visible issues where the minimap/safe-zone overlay is too dominant and hard to read, and where water bodies look like large blurry blue blocks with harsh edges instead of integrated top-down pixel-art terrain.
+
+## Current Status
+- Team created: `minimap-water-fix`.
+- User explicitly requested agent team execution.
+- Existing uncommitted changes are present from prior asset work; this task must avoid reverting unrelated changes.
+- Visual references are the three user-provided screenshots in this conversation.
+
+## Phases
+
+| Phase | Status | Purpose | Output |
+|---|---|---|---|
+| 1. Minimap audit | complete | Locate HUD/minimap/safe-zone overlay code and root cause. | Findings updated. |
+| 2. Water audit | complete | Locate terrain/water generation and rendering root cause. | Findings updated. |
+| 3. Implementation | complete | Apply minimal code/script/asset fixes without changing gameplay behavior. | Updated HUD CSS, scene water rendering, and generated arena art. |
+| 4. Validation | complete | Run tests/build and browser screenshot verification. | `typecheck`, tests, build, and browser screenshots passed. |
+
+## Decisions
+- Preserve gameplay state, collision zones, map dimensions, asset manifest paths, and frame metadata.
+- Prefer fixing generator/rendering code before generating brand-new art.
+- Use `codex-gateway-imagegen` only if current source atlases cannot produce acceptable water/minimap visuals.
+
+## Errors Encountered
+| Error | Attempt | Resolution |
+|---|---|---|
+| Duplicate old planning error row prevented a targeted append edit | 1 | Rewrote `task_plan.md` from the already-read full content and appended the new section. |

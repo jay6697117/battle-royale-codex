@@ -93,3 +93,22 @@ Original prompt: /Users/zhangjinhui/Desktop/battle-royale-codex/game.png
 - Validation passed: `npm test -- src/game/assets/asset-manifest.test.ts`, `npm run typecheck`, and `npm run build`.
 - Browser validation passed with no console warnings/errors. Screenshots saved: `output/plan-md-start-modal-final.png` and `output/plan-md-battle-clear-final.png`.
 - Final battle screenshot includes water, ruins/stone walls, bushes, pickups, PVE enemies, HUD, and storm edge.
+
+---
+
+# Progress: Minimap and Water Visual Fix
+
+## 2026-04-25
+- Created team `minimap-water-fix` for the user-requested agent-team fix.
+- Ran planning catchup with explicit skill path; it reported no previous planning file updates for this task.
+- Checked `git diff --stat`; existing changes include `BattleScene.ts`, `styles.css`, `tools/build_imagegen_assets.py`, map tests/content, and a Vite/Vitest cache file.
+- Appended the new task section to `task_plan.md` after a duplicate-row targeted edit failed.
+- Started two audit agents: `minimap-auditor` and `water-auditor`.
+- Initial direct read found minimap code in `HudController.ts` and `.mini-map` styling in `styles.css`.
+- Implemented minimap CSS changes in `src/styles.css`: smaller 16:9 map thumbnail, real arena background, subtler frame, storm overlay, and smaller dots.
+- Implemented water rendering fix in `src/phaser/scenes/BattleScene.ts`: water `MAP_FEATURES` are no longer tiled again at runtime because the generated arena ground already contains water art.
+- Implemented water generation improvements in `tools/build_imagegen_assets.py` and regenerated `public/assets/maps/arena-ground.png`.
+- Validation passed: `npm run typecheck`, `npm run test -- src/game/content/map.test.ts`, `npm run test`, and `npm run build`.
+- Browser validation passed: start and gameplay screenshots saved to `output/minimap-water-start.png` and `output/minimap-water-play.png`; console only showed Vite/Phaser startup messages.
+- Stopped the local Vite dev server after validation.
+- User chose to keep all generated PNG changes from the asset regeneration, including incidental character/enemy PNG updates.

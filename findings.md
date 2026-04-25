@@ -77,3 +77,24 @@
 - Player variants should feel tactical/fantasy-survival: layered clothing, heads/helmets/hats, weapons with metallic highlights, animated bob/recoil/hurt feedback.
 - Monsters should be more distinct through wings, eyes, slime glow, teeth/spikes, and stronger shadows.
 - Props/buildings should look more physical: planks, metal bands, stone cracks, highlights, moss, and depth.
+
+---
+
+# Findings: PLAN.md Full Runtime Asset Redesign
+
+## Current Discoveries
+- Team `plan-md-asset-implementation` has been created for this task.
+- User requested implementation of `PLAN.md` with an agent team.
+- `PLAN.md` requires regenerating the 84 runtime PNG assets actually loaded by `src/game/assets/manifest.ts` and excludes `public/assets/fx/storm-overlay.png` unless manifest usage changes.
+- Required style direction: match `game.png` with top-down premium pixel-art battle royale, rounded hand-painted pixel clusters, readable small-scale silhouettes, no text, no watermark.
+
+## Audit Results
+- Manifest loads exactly 84 runtime PNGs: 13 image assets, 50 spritesheets, and 21 UI assets.
+- `public/assets/fx/storm-overlay.png` exists but is not manifest-loaded and stays outside the required set.
+- Required fixed sizes include: arena-ground 1920x1080 RGB, storm-sea 512x512 RGB, character/enemy frames 96x96, pickup frames 48x48, FX frames 64x64 except storm-edge 128x96, UI icons 96x96, portraits 56x56, rank badges 34x34.
+- Asset manifest tests require every spritesheet PNG to have alpha, even grass/water tiles; `requiresAlpha` images and UI also need alpha.
+- Current `tools/build_imagegen_assets.py` already crops, trims alpha, resizes, packs strips, composes the map, and writes `public/assets`; it uses Pillow only.
+- Existing script inputs are `output/imagegen-sources/source-01.png`, `source-02-alpha.png`, `source-03-alpha.png`, `source-04-alpha.png`, and `source-05-alpha.png`; `source-06.png` exists but is unused.
+- No `tools/remove_chroma_key.py` exists, so chroma-key removal should be added inside `tools/build_imagegen_assets.py` instead of depending on a missing script.
+- Map alignment must use all `WATER_ZONES`, `STRUCTURE_ZONES`, `FOLIAGE_ZONES`, `PROP_SOLID_ZONES`, and the west barrel from `src/game/content/map.ts`.
+- PLAN mismatch: “5 backpack icons” means the manifest’s 5 HUD item icons: pistol, shotgun, rifle, shield, medkit.

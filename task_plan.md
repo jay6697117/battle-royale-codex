@@ -94,3 +94,37 @@ Redesign and regenerate the game's player, monster, item, building/prop, and gro
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |---|---|---|
+
+---
+
+# Task Plan: PLAN.md Full Runtime Asset Redesign
+
+## Goal
+Implement `/Users/zhangjinhui/Desktop/battle-royale-codex/PLAN.md`: regenerate all 84 runtime PNG assets loaded by `src/game/assets/manifest.ts` to match `game.png` style, while preserving manifest paths, frame dimensions, frame counts, entity logic, and Phaser gameplay behavior.
+
+## Current Status
+- Team created: `plan-md-asset-implementation`.
+- User explicitly requested agent team execution.
+- `PLAN.md` is the source of truth for this task.
+- Existing planning files had older task sections, so this section is appended instead of deleting prior context.
+
+## Phases
+
+| Phase | Status | Purpose | Output |
+|---|---|---|---|
+| 1. Manifest and asset audit | complete | Confirm exact loaded PNGs, dimensions, frames, alpha/opaque requirements, and tests. | Agent report and `findings.md` update. |
+| 2. Imagegen pipeline audit | complete | Inspect current scripts and decide safest route for Codex gateway atlas generation + packing. | Agent report and `findings.md` update. |
+| 3. Source atlas generation | in_progress | Use `codex-gateway-imagegen` skill for the planned atlas set, using `game.png` style reference where possible. | New source images saved in workspace. |
+| 4. Packing and asset regeneration | pending | Update/run `tools/build_imagegen_assets.py` or related scripts to crop/normalize/pack PNGs into `public/assets/...`. | Updated runtime PNGs, no manifest path changes unless required. |
+| 5. Validation | pending | Run asset manifest test, typecheck, build, and browser screenshot checks. | Test output and screenshots recorded in `progress.md`. |
+
+## Decisions
+- Keep `src/game/assets/manifest.ts` unchanged unless validation proves a true conflict.
+- Do not hand-edit `dist/assets`; regenerate via `npm run build` only.
+- Treat `public/assets/fx/storm-overlay.png` as non-required unless manifest changes.
+- Prefer existing file edits over new files, but generated source atlas outputs are expected artifacts for this task.
+
+## Errors Encountered
+| Error | Attempt | Resolution |
+|---|---|---|
+| `${CLAUDE_PLUGIN_ROOT}` was empty for planning catchup script | 1 | Re-ran catchup using explicit skill path `/Users/zhangjinhui/.claude/skills/planning-with-files/scripts/session-catchup.py`. |

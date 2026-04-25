@@ -754,20 +754,58 @@ def generate_arena_ground() -> None:
     apply_mask_color(water_mask, rgba("#23678e"))
     draw = ImageDraw.Draw(ground)
 
-    for _ in range(96):
-        x = rng.randint(260, 1380)
-        y = rng.randint(90, 965)
-        if water_mask.getpixel((x, y)) == 0:
+    ripple_layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    ripple_draw = ImageDraw.Draw(ripple_layer)
+
+    def point_in_water(x: int, y: int) -> bool:
+        return 0 <= x < width and 0 <= y < height and water_mask.getpixel((x, y)) > 0
+
+    def draw_broken_ripple(cx: int, cy: int, span: int, bend: int, opacity: int) -> None:
+        color = rgba("#9edceb", opacity)
+        shadow = rgba("#174f75", max(22, opacity // 3))
+        pieces = [(-0.48, -0.18), (-0.08, 0.16), (0.28, 0.48)]
+        for start_ratio, end_ratio in pieces:
+            x1 = cx + int(span * start_ratio)
+            x2 = cx + int(span * end_ratio)
+            mid = (x1 + x2) / 2
+            y1 = cy + int(bend * ((x1 - cx) / max(1, span)) ** 2)
+            y2 = cy + int(bend * ((x2 - cx) / max(1, span)) ** 2)
+            if point_in_water(x1, y1) and point_in_water(x2, y2):
+                ripple_draw.line((x1, y1 + 1, x2, y2 + 1), fill=shadow, width=1)
+                ripple_draw.line((x1, y1, x2, y2), fill=color, width=1)
+                if span > 46 and point_in_water(int(mid), cy + bend // 5):
+                    ripple_draw.point((int(mid), cy + bend // 5), fill=rgba("#c8f3fb", min(150, opacity + 30)))
+
+    ripple_clusters = [
+        (342, 652, 58, 11, 122),
+        (430, 690, 50, 8, 92),
+        (312, 740, 34, 6, 82),
+        (360, 789, 46, 7, 96),
+        (472, 853, 30, 5, 86),
+        (292, 949, 32, 7, 78),
+        (455, 916, 56, 9, 88),
+        (1128, 142, 44, 8, 112),
+        (1182, 132, 36, 7, 96),
+        (1260, 193, 72, 9, 104),
+        (1178, 247, 44, 7, 88),
+    ]
+    for cx, cy, span, bend, opacity in ripple_clusters:
+        draw_broken_ripple(cx, cy, span, bend, opacity)
+
+    for _ in range(34):
+        x = rng.randint(270, 1370)
+        y = rng.randint(96, 960)
+        if not point_in_water(x, y):
             continue
-        length = rng.randint(18, 62)
-        draw.arc((x - length, y - 7, x + length, y + 20), 200, 340, fill=rgba("#8bd7e8", rng.randint(70, 135)), width=2)
-    for _ in range(14):
-        x = rng.randint(300, 1320)
-        y = rng.randint(145, 915)
-        if water_mask.getpixel((x, y)) == 0:
-            continue
-        draw.ellipse((x - 8, y - 5, x + 9, y + 6), fill=rgba("#84c55e", 185))
-        draw.line((x - 1, y - 4, x + 8, y), fill=rgba("#4d8c3e", 160), width=1)
+        length = rng.randint(8, 22)
+        if point_in_water(x + length, y):
+            ripple_draw.line((x, y, x + length, y), fill=rgba("#78b9cb", rng.randint(38, 72)), width=1)
+
+    ground.alpha_composite(ripple_layer)
+
+    for pad_x, pad_y in [(363, 753), (455, 864)]:
+        draw.ellipse((pad_x - 8, pad_y - 5, pad_x + 9, pad_y + 6), fill=rgba("#84c55e", 185))
+        draw.line((pad_x - 1, pad_y - 4, pad_x + 8, pad_y), fill=rgba("#4d8c3e", 160), width=1)
 
     for _ in range(260):
         x = rng.randint(20, width - 30)

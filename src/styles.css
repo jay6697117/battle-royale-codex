@@ -53,11 +53,11 @@ body,
 
 .hud-left {
   position: absolute;
-  left: clamp(10px, 1.6vw, 28px);
-  top: clamp(10px, 2.4vh, 28px);
+  left: clamp(10px, 1.4vw, 22px);
+  top: clamp(10px, 2vh, 22px);
   display: grid;
-  gap: 8px;
-  width: min(290px, 25vw);
+  gap: 4px;
+  width: clamp(220px, 18vw, 240px);
   transition: opacity 140ms ease, filter 140ms ease;
 }
 
@@ -68,14 +68,14 @@ body,
 
 .fighter-row {
   display: grid;
-  grid-template-columns: 28px 52px 1fr;
+  grid-template-columns: 20px 36px 1fr;
   align-items: center;
-  min-height: 60px;
-  padding: 6px 10px 6px 4px;
+  min-height: 44px;
+  padding: 4px 7px 4px 3px;
   border: 1px solid rgba(244, 255, 223, 0.16);
-  border-radius: 10px;
+  border-radius: 8px;
   background: linear-gradient(90deg, rgba(20, 24, 22, 0.72), rgba(39, 54, 30, 0.48));
-  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.18);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.18);
   backdrop-filter: blur(1px);
 }
 
@@ -86,15 +86,16 @@ body,
 
 .fighter-rank {
   display: grid;
-  width: 24px;
-  height: 24px;
+  width: 18px;
+  height: 18px;
   place-items: center;
   border: 2px solid rgba(255, 255, 255, 0.55);
-  border-radius: 5px;
+  border-radius: 4px;
   background: #3c94d8;
   background-position: center;
   background-size: 100% 100%;
   color: white;
+  font-size: 10px;
   font-weight: 900;
   text-shadow: 0 2px #132033;
 }
@@ -120,14 +121,14 @@ body,
 }
 
 .fighter-portrait {
-  width: 44px;
-  height: 44px;
-  border: 3px solid #1b1b22;
-  border-radius: 8px;
+  width: 34px;
+  height: 34px;
+  border: 2px solid #1b1b22;
+  border-radius: 7px;
   background: #222;
   background-position: center;
   background-size: cover;
-  box-shadow: inset 0 -10px rgba(0, 0, 0, 0.24);
+  box-shadow: inset 0 -8px rgba(0, 0, 0, 0.24);
 }
 
 .fighter-portrait.samurai {
@@ -152,13 +153,22 @@ body,
 }
 
 .fighter-body {
+  display: grid;
   min-width: 0;
+  gap: 3px;
+}
+
+.fighter-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
 }
 
 .fighter-name {
   overflow: hidden;
   color: white;
-  font-size: clamp(11px, 1.3vw, 18px);
+  font-size: clamp(10px, 0.95vw, 13px);
   font-weight: 900;
   line-height: 1.05;
   text-overflow: ellipsis;
@@ -168,8 +178,7 @@ body,
 
 .fighter-bars {
   position: relative;
-  height: 12px;
-  margin-top: 4px;
+  height: 9px;
   overflow: hidden;
   border: 2px solid #050709;
   border-radius: 3px;
@@ -195,19 +204,26 @@ body,
 }
 
 .fighter-value {
-  margin-top: 1px;
   color: #e8f6df;
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 900;
   text-shadow: 0 2px #111;
+  white-space: nowrap;
+}
+
+.hud-right-stack {
+  position: absolute;
+  top: clamp(10px, 2vh, 22px);
+  right: clamp(10px, 1.6vw, 26px);
+  display: grid;
+  justify-items: end;
+  gap: 6px;
 }
 
 .hud-top-right {
-  position: absolute;
-  top: clamp(12px, 2.4vh, 28px);
-  right: clamp(86px, 14vw, 280px);
   display: flex;
-  gap: 8px;
+  justify-content: flex-end;
+  gap: 5px;
   transition: opacity 140ms ease;
 }
 
@@ -215,18 +231,18 @@ body,
 .storm-timer {
   display: flex;
   align-items: center;
-  min-height: 38px;
-  gap: 8px;
-  padding: 6px 16px;
+  min-height: 28px;
+  gap: 5px;
+  padding: 4px 10px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 7px;
   background:
     url("/assets/ui/stat-pill.png") center / 100% 100% no-repeat,
     var(--hud-bg);
   color: white;
-  font-size: clamp(16px, 1.5vw, 24px);
+  font-size: clamp(12px, 1vw, 16px);
   font-weight: 900;
-  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.28);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.28);
 }
 
 .hud-top-right.is-occluding .stat-pill,
@@ -244,10 +260,8 @@ body,
 }
 
 .mini-map {
-  position: absolute;
-  top: clamp(64px, 8vh, 100px);
-  right: clamp(14px, 2vw, 36px);
-  width: min(260px, 20vw);
+  position: relative;
+  width: clamp(170px, 13vw, 190px);
   aspect-ratio: 1;
   overflow: hidden;
   border: 0;
@@ -257,7 +271,7 @@ body,
     radial-gradient(circle at 66% 30%, rgba(47, 127, 176, 0.82) 0 12%, transparent 13%),
     repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.035) 0 3px, transparent 3px 16px),
     rgba(117, 168, 90, 0.68);
-  box-shadow: 0 8px 0 rgba(0, 0, 0, 0.28);
+  box-shadow: 0 5px 0 rgba(0, 0, 0, 0.28);
   opacity: 0.86;
   transition: opacity 140ms ease, filter 140ms ease;
 }
@@ -278,15 +292,15 @@ body,
 
 .mini-storm {
   position: absolute;
-  border: 3px solid rgba(255, 255, 255, 0.85);
+  border: 2px solid rgba(255, 255, 255, 0.85);
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.04);
 }
 
 .mini-dot {
   position: absolute;
-  width: 14px;
-  height: 14px;
+  width: 10px;
+  height: 10px;
   border: 2px solid white;
   border-radius: 50%;
   transform: translate(-50%, -50%);
@@ -313,23 +327,22 @@ body,
 }
 
 .mini-dot.pve {
-  width: 9px;
-  height: 9px;
+  width: 7px;
+  height: 7px;
   background: #3a173e;
 }
 
 .storm-timer {
-  position: absolute;
-  top: clamp(294px, 34vh, 385px);
-  right: clamp(38px, 4.8vw, 96px);
-  min-width: 116px;
+  justify-self: center;
+  min-width: 86px;
   justify-content: center;
+  margin-top: -2px;
 }
 
 .storm-timer span {
-  width: 18px;
-  height: 18px;
-  border: 3px solid white;
+  width: 13px;
+  height: 13px;
+  border: 2px solid white;
   border-radius: 50%;
   background: var(--danger);
 }

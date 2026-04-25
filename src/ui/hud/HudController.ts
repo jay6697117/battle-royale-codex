@@ -49,19 +49,21 @@ export class HudController {
       <div class="hud-left ${hudOcclusion.left ? "is-occluding" : ""}">
         ${fighters.map((fighter) => this.renderFighterRow(fighter)).join("")}
       </div>
-      <div class="hud-top-right ${hudOcclusion.topRight ? "is-occluding" : ""}">
-        <div class="stat-pill"><span class="stat-icon">●</span>${state.scoreboard.aliveFighters}</div>
-        <div class="stat-pill"><span class="stat-icon skull">◆</span>${state.scoreboard.kills + state.scoreboard.pveKills}</div>
+      <div class="hud-right-stack">
+        <div class="hud-top-right ${hudOcclusion.topRight ? "is-occluding" : ""}">
+          <div class="stat-pill"><span class="stat-icon">●</span>${state.scoreboard.aliveFighters}</div>
+          <div class="stat-pill"><span class="stat-icon skull">◆</span>${state.scoreboard.kills + state.scoreboard.pveKills}</div>
+        </div>
+        <div class="mini-map ${hudOcclusion.miniMap ? "is-occluding" : ""}">
+          <div class="mini-storm" style="${this.stormMiniStyle(state)}"></div>
+          ${fighters.map((fighter) => this.renderMiniDot(fighter)).join("")}
+          ${entities
+            .filter((entity) => entity.kind === "pve" && entity.alive)
+            .map((entity) => this.renderMiniDot(entity))
+            .join("")}
+        </div>
+        <div class="storm-timer ${hudOcclusion.miniMap ? "is-occluding" : ""}"><span></span>${this.formatTime(stormSeconds)}</div>
       </div>
-      <div class="mini-map ${hudOcclusion.miniMap ? "is-occluding" : ""}">
-        <div class="mini-storm" style="${this.stormMiniStyle(state)}"></div>
-        ${fighters.map((fighter) => this.renderMiniDot(fighter)).join("")}
-        ${entities
-          .filter((entity) => entity.kind === "pve" && entity.alive)
-          .map((entity) => this.renderMiniDot(entity))
-          .join("")}
-      </div>
-      <div class="storm-timer ${hudOcclusion.miniMap ? "is-occluding" : ""}"><span></span>${this.formatTime(stormSeconds)}</div>
       <div class="progression-panel ${hudOcclusion.inventory ? "is-occluding" : ""}">
         <div class="progression-main"><strong>等级 ${state.progression.level}</strong><div class="xp-bar"><i style="width:${xpPercent}%"></i></div><span>${state.progression.xp}/${state.progression.xpToNextLevel}</span></div>
         <div class="progression-meta">
@@ -114,12 +116,14 @@ export class HudController {
         <div class="fighter-rank rank-${fighter.teamIndex ?? 0}">${fighter.teamIndex ?? 0}</div>
         <div class="fighter-portrait ${fighter.role ?? "rogue"}"></div>
         <div class="fighter-body">
-          <div class="fighter-name">${fighter.label ?? fighter.id}</div>
+          <div class="fighter-meta">
+            <div class="fighter-name">${fighter.label ?? fighter.id}</div>
+            <div class="fighter-value">${Math.ceil(fighter.health ?? 0)}/${Math.ceil(fighter.maxHealth ?? 100)}</div>
+          </div>
           <div class="fighter-bars">
             <i class="health" style="width:${health}%"></i>
             <i class="shield" style="width:${shield}%"></i>
           </div>
-          <div class="fighter-value">${Math.ceil(fighter.health ?? 0)}/${Math.ceil(fighter.maxHealth ?? 100)}</div>
         </div>
       </div>
     `;
@@ -328,9 +332,9 @@ export class HudController {
       });
 
     return {
-      left: hasEntityInRegion(0, 0, 27, 67),
-      topRight: hasEntityInRegion(76, 0, 100, 12),
-      miniMap: hasEntityInRegion(71, 5, 100, 45),
+      left: hasEntityInRegion(0, 0, 22, 34),
+      topRight: hasEntityInRegion(84, 0, 100, 8),
+      miniMap: hasEntityInRegion(82, 4, 100, 33),
       inventory: hasEntityInRegion(31, 78, 69, 100)
     };
   }

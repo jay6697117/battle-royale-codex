@@ -201,3 +201,17 @@
 - `WATER_ZONES` were expanded into several rectangles that cover the generated ponds while keeping nearby dry land walkable.
 - `map.test.ts` now checks player, bot, slime, wolf, spitter, and golem are blocked by visible water, while bat-type PvE can still cross and projectiles still ignore water.
 - Player visibility is fixed in `BattleScene.ts` with a player-only gold pulse ring, a `▼ 你` marker above the player, and brighter own label styling.
+
+---
+
+# Findings: Mobile Touch Controls
+
+## Current Discoveries
+- Team `mobile-controls` has been created for this task.
+- Existing input is centralized in `src/phaser/scenes/BattleScene.ts`.
+- `createInput` registers WASD, arrow keys, number slots, `E` weapon cycle, space item use, Enter start, and `R` restart.
+- `collectInput` creates `InputFrame` values for `moveX`, `moveY`, `aimX`, `aimY`, `shooting`, `selectedSlot`, and `useItem`.
+- Mouse left button shoots only when selected slot is 1-3; right button and space queue item use.
+- `src/game/input/actions.ts` has no dash or interact field.
+- `src/game/simulation/state.ts` auto-collects pickups when the player overlaps a pickup, so a separate pickup button is unnecessary.
+- Best minimal mobile mapping: left virtual joystick drives `moveX/moveY`; right fire button sets `shooting`; smaller weapon button cycles slots 1-3; smaller item button selects/uses shield or medkit.

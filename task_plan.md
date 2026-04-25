@@ -357,3 +357,36 @@ Fix the screenshot-visible issue where non-flying player/monsters can appear ins
 |---|---|---|
 | `map.test.ts` expected `(1320, 280)` to be walkable, but the player radius touches the expanded north pond zone | 1 | Switched the negative land check to clearer dry land at `(1350, 280)` and kept water-edge points covered by positive collision tests. |
 | Browser screenshot still showed the start notice after pressing Enter | 1 | Verified it was an automation focus/timing issue by clicking the start button; the notice closed and a clean validation screenshot was saved. |
+
+---
+
+# Task Plan: Mobile Touch Controls
+
+## Goal
+Add mobile-friendly controls for touch devices: a virtual movement joystick plus operation buttons for firing, weapon cycling, and using selected consumables, while preserving the existing keyboard/mouse controls and current uncommitted game changes.
+
+## Current Status
+- User explicitly requested using an agent team.
+- Team created: `mobile-controls`.
+- Existing uncommitted changes in `BattleScene.ts`, `state.ts`, assets/CSS/build output must not be reverted.
+- Implementation will use Phaser scene overlay controls instead of changing simulation rules.
+
+## Phases
+
+| Phase | Status | Purpose | Output |
+|---|---|---|---|
+| 1. Control audit | complete | Locate existing keyboard, pointer, shooting, slot, item, start, and restart handling. | Existing input is in `BattleScene.collectInput` and `createInput`. |
+| 2. Mobile control design | complete | Choose minimal touch layout and action mapping. | Left joystick; right-side fire, switch weapon, use item buttons. |
+| 3. Implementation | in_progress | Add touch overlay state, rendering, pointer handling, and input-frame mapping. | Pending code changes. |
+| 4. Validation | pending | Run typecheck/tests/build and browser/mobile viewport smoke check. | Pending results. |
+
+## Decisions
+- Do not add a new dash mechanic because the simulation currently has no dash input or cooldown.
+- Do not add a pickup button because pickups are already collected automatically when the player is close enough.
+- Keep keyboard and mouse behavior unchanged for desktop.
+- Render touch controls inside Phaser with fixed camera scroll factor so they align with the canvas and do not interfere with DOM HUD inventory tooltips.
+
+## Errors Encountered
+| Error | Attempt | Resolution |
+|---|---|---|
+| `${CLAUDE_PLUGIN_ROOT}` was empty for planning catchup script | 1 | Re-ran catchup using explicit skill path `/Users/zhangjinhui/.claude/skills/planning-with-files/scripts/session-catchup.py`. |

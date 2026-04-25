@@ -96,6 +96,7 @@ export interface GameEvent {
   x: number;
   y: number;
   entityId?: string;
+  sourceId?: string;
   value?: number;
 }
 
@@ -813,7 +814,7 @@ const updateProjectiles = (state: GameState, entities: EntityList, deltaMs: numb
     if (hit) {
       damageEntity(state, hit, projectile.damage ?? 0, projectile.ownerId);
       projectile.alive = false;
-      pushEvent(state, "hit", hit.x, hit.y, hit.id, projectile.damage);
+      pushEvent(state, "hit", hit.x, hit.y, hit.id, projectile.damage, projectile.ownerId);
     }
   }
 
@@ -1107,7 +1108,7 @@ const damageEntity = (
 
   if (entity.health <= 0 && entity.alive) {
     entity.alive = false;
-    pushEvent(state, "elimination", entity.x, entity.y, entity.id);
+    pushEvent(state, "elimination", entity.x, entity.y, entity.id, undefined, sourceId);
 
     if (sourceId === state.playerId) {
       if (entity.kind === "pve") {
@@ -1123,7 +1124,7 @@ const damageEntity = (
 const rewardPveKill = (state: GameState, entity: EntityState) => {
   const xp = pveDefinition(entity).xp;
   state.progression.xp += xp;
-  pushEvent(state, "xp", entity.x, entity.y, entity.id, xp);
+  pushEvent(state, "xp", entity.x, entity.y, entity.id, xp, state.playerId);
   applyLevelUps(state, entity.x, entity.y);
   dropLootForKill(state, entity);
 };
@@ -1157,7 +1158,7 @@ const dropLootForKill = (state: GameState, entity: EntityState) => {
   const id = `loot_${pickupType}_${state.nextEntityId}`;
   state.nextEntityId += 1;
   state.entities[id] = createPickup(id, pickupType, position.x, position.y);
-  pushEvent(state, "loot", position.x, position.y, id, lootValue(pickupType));
+  pushEvent(state, "loot", position.x, position.y, id, lootValue(pickupType), state.playerId);
 };
 
 const lootRoll = (entity: EntityState, killCount: number) => {
@@ -1266,7 +1267,8 @@ const pushEvent = (
   x: number,
   y: number,
   entityId?: string,
-  value?: number
+  value?: number,
+  sourceId?: string
 ) => {
   state.events.push({
     id: state.nextEventId,
@@ -1274,6 +1276,7 @@ const pushEvent = (
     x,
     y,
     entityId,
+    sourceId,
     value
   });
   state.nextEventId += 1;

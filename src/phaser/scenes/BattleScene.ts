@@ -1,9 +1,8 @@
 import Phaser from "phaser";
 import {
-  IMAGE_ASSETS,
-  SPRITESHEET_ASSETS,
+  PHASER_IMAGE_ASSETS,
+  PHASER_SPRITESHEET_ASSETS,
   TextureKey,
-  UI_ASSETS,
   characterSheetKey,
   enemySheetKey,
   pickupGlowKey,
@@ -70,9 +69,50 @@ interface ControlKeys {
   restart: Phaser.Input.Keyboard.Key;
 }
 
+type MobileButtonId = "fire" | "weapon" | "item";
+
+interface MobileJoystickControl {
+  base: Phaser.GameObjects.Graphics;
+  knob: Phaser.GameObjects.Graphics;
+  zone: Phaser.GameObjects.Zone;
+  pointerId?: number;
+  originX: number;
+  originY: number;
+  moveX: number;
+  moveY: number;
+}
+
+interface MobileButtonControl {
+  id: MobileButtonId;
+  zone: Phaser.GameObjects.Zone;
+  background: Phaser.GameObjects.Graphics;
+  label: Phaser.GameObjects.Text;
+  caption: Phaser.GameObjects.Text;
+  pointerId?: number;
+  pressed: boolean;
+  justPressed: boolean;
+  x: number;
+  y: number;
+  radius: number;
+  color: number;
+}
+
+interface MobileControls {
+  enabled: boolean;
+  visible: boolean;
+  joystick: MobileJoystickControl;
+  buttons: Record<MobileButtonId, MobileButtonControl>;
+}
+
 const HUD_UPDATE_INTERVAL_MS = 100;
 const STORM_GRAPHICS_UPDATE_INTERVAL_MS = 83;
 const STORM_RADIUS_REDRAW_THRESHOLD = 1.5;
+const MOBILE_CONTROL_DEPTH = 9_000;
+const MOBILE_JOYSTICK_X = 170;
+const MOBILE_JOYSTICK_Y = WORLD_HEIGHT - 165;
+const MOBILE_JOYSTICK_RADIUS = 78;
+const MOBILE_JOYSTICK_KNOB_RADIUS = 32;
+const MOBILE_BUTTON_FONT = "PingFang SC, Microsoft YaHei, Noto Sans SC, sans-serif";
 
 type AudioCue =
   | "start"
@@ -120,13 +160,10 @@ export class BattleScene extends Phaser.Scene {
   }
 
   preload() {
-    for (const asset of IMAGE_ASSETS) {
+    for (const asset of PHASER_IMAGE_ASSETS) {
       this.load.image(asset.key, asset.path);
     }
-    for (const asset of UI_ASSETS) {
-      this.load.image(asset.key, asset.path);
-    }
-    for (const asset of SPRITESHEET_ASSETS) {
+    for (const asset of PHASER_SPRITESHEET_ASSETS) {
       this.load.spritesheet(asset.key, asset.path, {
         frameWidth: asset.frameWidth,
         frameHeight: asset.frameHeight,
@@ -145,7 +182,7 @@ export class BattleScene extends Phaser.Scene {
     this.cameras.main.centerOn(WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
     this.scale.on("resize", () => this.hud.update(this.state, Object.values(this.state.entities), !this.matchStarted, this.getViewportBounds()));
     this.hud.update(this.state, Object.values(this.state.entities), true, this.getViewportBounds());
-    window.__battleState = this.state;
+    this.exposeDebugState();
   }
 
   update(time: number, delta: number) {
@@ -154,12 +191,18 @@ export class BattleScene extends Phaser.Scene {
       stepSimulation(this.state, input, Math.min(delta, 16.67));
     }
     const entities = Object.values(this.state.entities);
-    window.__battleState = this.state;
+    this.exposeDebugState();
     this.renderStorm(time);
     this.renderEntities(entities);
     this.renderEvents();
     this.renderPhaseAudio();
     this.updateHud(entities, time);
+  }
+
+  private exposeDebugState() {
+    if ((import.meta as ImportMeta & { env?: { DEV?: boolean } }).env?.DEV) {
+      window.__battleState = this.state;
+    }
   }
 
   private createInput() {
@@ -852,7 +895,18 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private playAudioCueForEvent(event: GameEvent) {
+    if (!this.isPlayerAudioEvent(event)) {
+      return;
+    }
     this.playAudioCue(event.type);
+  }
+
+  private isPlayerAudioEvent(event: GameEvent) {
+    if (event.entityId === this.state.playerId || event.sourceId === this.state.playerId) {
+      return true;
+    }
+    const entity = event.entityId ? this.state.entities[event.entityId] : undefined;
+    return event.type === "pickup" && entity?.kind === "pickup";
   }
 
   private unlockAudioFromKeyboard() {

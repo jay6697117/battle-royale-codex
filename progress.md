@@ -215,3 +215,15 @@ Original prompt: /Users/zhangjinhui/Desktop/battle-royale-codex/game.png
 - Validation passed: `npm run typecheck`, `npm run test -- src/game/content/map.test.ts src/game/assets/asset-manifest.test.ts`, `npm run test`, and `npm run build`.
 - Browser validation passed on Vite port 5174: runtime collision checks confirmed player/non-flying monsters blocked by water, bat and bullets not blocked, console had no warnings/errors.
 - Screenshots saved: `output/water-collision-player-locator-play.png` and clean no-modal screenshot `output/water-collision-player-locator-clear.png`.
+
+---
+
+# Progress: Mobile Touch Controls
+
+## 2026-04-25
+- Created team `mobile-controls` for the user-requested agent-team mobile controls task.
+- Ran planning catchup; first `${CLAUDE_PLUGIN_ROOT}` command failed because the variable was empty, then explicit skill path succeeded.
+- Checked current git diff and confirmed existing uncommitted changes must be preserved.
+- Read existing planning files and appended this task section instead of replacing prior task history.
+- Audited current input path: `BattleScene.createInput`, `BattleScene.collectInput`, `InputFrame`, and simulation pickup/use behavior.
+- Decided to implement joystick + fire + weapon-cycle + use-item controls, not dash/pickup, because dash is not modeled and pickup is automatic.

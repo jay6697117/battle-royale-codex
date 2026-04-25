@@ -232,4 +232,26 @@ export const SPRITESHEET_ASSETS: SpritesheetAsset[] = [
   }
 ];
 
+const unusedPhaserImageAssetKeys = new Set<string>([
+  TextureKey.Pistol,
+  TextureKey.Ammo,
+  TextureKey.Medkit,
+  TextureKey.Shield,
+  TextureKey.Rifle,
+  TextureKey.Shotgun,
+  TextureKey.Coin
+]);
+
+const unusedPhaserSpritesheetAssetKeys = new Set<string>([
+  TextureKey.GrassTiles,
+  TextureKey.WaterTiles,
+  TextureKey.RuinsTiles,
+  "fx-storm-arc"
+]);
+
+export const PHASER_IMAGE_ASSETS = IMAGE_ASSETS.filter((asset) => !unusedPhaserImageAssetKeys.has(asset.key));
+export const PHASER_SPRITESHEET_ASSETS = SPRITESHEET_ASSETS.filter(
+  (asset) => !unusedPhaserSpritesheetAssetKeys.has(asset.key)
+);
+
 export const ALL_ASSETS = [...IMAGE_ASSETS, ...SPRITESHEET_ASSETS, ...UI_ASSETS] as const;

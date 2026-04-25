@@ -835,30 +835,40 @@ body,
 @media (max-width: 820px) {
   .hud-left {
     width: 210px;
-    gap: 5px;
+    gap: 4px;
   }
 
   .fighter-row {
-    grid-template-columns: 22px 36px 1fr;
-    min-height: 45px;
-    padding: 4px 7px 4px 3px;
+    grid-template-columns: 18px 32px 1fr;
+    min-height: 42px;
+    padding: 4px 6px 4px 3px;
   }
 
   .fighter-portrait {
-    width: 32px;
-    height: 32px;
+    width: 30px;
+    height: 30px;
   }
 
+  .fighter-name,
   .fighter-value {
-    display: none;
+    font-size: 9px;
+  }
+
+  .hud-right-stack {
+    top: 10px;
+    right: 10px;
+    gap: 5px;
   }
 
   .mini-map {
     width: 132px;
   }
 
-  .hud-top-right {
-    right: 150px;
+  .stat-pill,
+  .storm-timer {
+    min-height: 24px;
+    padding: 3px 8px;
+    font-size: 11px;
   }
 
   .start-notice {

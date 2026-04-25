@@ -71,48 +71,32 @@ interface ControlKeys {
 
 type MobileButtonId = "fire" | "weapon" | "item";
 
-interface MobileJoystickControl {
-  base: Phaser.GameObjects.Graphics;
-  knob: Phaser.GameObjects.Graphics;
-  zone: Phaser.GameObjects.Zone;
-  pointerId?: number;
-  originX: number;
-  originY: number;
+interface MobileControls {
+  root: HTMLDivElement;
+  joystick: HTMLDivElement;
+  joystickKnob: HTMLDivElement;
+  joystickPointerId?: number;
   moveX: number;
   moveY: number;
+  firePointerIds: Set<number>;
+  buttonPointerIds: Partial<Record<MobileButtonId, number>>;
+  fireQueued: boolean;
+  weaponCycleQueued: boolean;
+  useItemQueued: boolean;
 }
 
-interface MobileButtonControl {
-  id: MobileButtonId;
-  zone: Phaser.GameObjects.Zone;
-  background: Phaser.GameObjects.Graphics;
-  label: Phaser.GameObjects.Text;
-  caption: Phaser.GameObjects.Text;
-  pointerId?: number;
-  pressed: boolean;
-  justPressed: boolean;
-  x: number;
-  y: number;
-  radius: number;
-  color: number;
-}
-
-interface MobileControls {
-  enabled: boolean;
-  visible: boolean;
-  joystick: MobileJoystickControl;
-  buttons: Record<MobileButtonId, MobileButtonControl>;
+interface MobileInputSnapshot {
+  moveX: number;
+  moveY: number;
+  shooting: boolean;
+  weaponCycle: boolean;
+  useItem: boolean;
 }
 
 const HUD_UPDATE_INTERVAL_MS = 100;
 const STORM_GRAPHICS_UPDATE_INTERVAL_MS = 83;
 const STORM_RADIUS_REDRAW_THRESHOLD = 1.5;
-const MOBILE_CONTROL_DEPTH = 9_000;
-const MOBILE_JOYSTICK_X = 170;
-const MOBILE_JOYSTICK_Y = WORLD_HEIGHT - 165;
-const MOBILE_JOYSTICK_RADIUS = 78;
-const MOBILE_JOYSTICK_KNOB_RADIUS = 32;
-const MOBILE_BUTTON_FONT = "PingFang SC, Microsoft YaHei, Noto Sans SC, sans-serif";
+const MOBILE_JOYSTICK_MAX_DISTANCE = 58;
 
 type AudioCue =
   | "start"
@@ -175,10 +159,11 @@ export class BattleScene extends Phaser.Scene {
 
   create() {
     this.state = createInitialGameState();
-    this.hud = new HudController(document.getElementById("hud-root"), () => this.startMatch());
+    this.hud = new HudController(document.getElementById("hud-root"), () => this.startMatch(), () => this.restartMatch());
     this.createAnimations();
     this.createMap();
     this.createInput();
+    this.createMobileControls();
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
     this.cameras.main.centerOn(WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
     this.scale.on("resize", () => this.hud.update(this.state, Object.values(this.state.entities), !this.matchStarted, this.getViewportBounds()));
@@ -232,6 +217,7 @@ export class BattleScene extends Phaser.Scene {
       restart: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R)
     };
 
+    this.input.addPointer(3);
     this.input.mouse?.disableContextMenu();
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       this.unlockAudio();
@@ -258,6 +244,7 @@ export class BattleScene extends Phaser.Scene {
 
     this.unlockAudioFromKeyboard();
 
+    const mobileInput = this.consumeMobileInput();
     const previousSlot = this.selectedSlot;
     if (Phaser.Input.Keyboard.JustDown(this.keys.slot1)) {
       this.selectedSlot = 1;
@@ -274,7 +261,13 @@ export class BattleScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(this.keys.slot5)) {
       this.selectedSlot = 5;
     }
-    if (Phaser.Input.Keyboard.JustDown(this.keys.weaponCycle)) {
+    if (Phaser.Input.Keyboard.JustDown(this.keys.weaponCycle) || mobileInput.weaponCycle) {
+      this.selectedSlot = this.nextWeaponSlot(this.selectedSlot);
+    }
+    if (mobileInput.useItem) {
+      this.queueMobileItemUse();
+    }
+    if (mobileInput.shooting && this.selectedSlot > 3) {
       this.selectedSlot = this.nextWeaponSlot(this.selectedSlot);
     }
     if (this.selectedSlot !== previousSlot) {
@@ -289,20 +282,244 @@ export class BattleScene extends Phaser.Scene {
 
     const pointer = this.input.activePointer;
     const frame = createEmptyInputFrame();
-    frame.moveX =
+    const keyboardMoveX =
       (this.keys.right.isDown || this.keys.arrowRight.isDown ? 1 : 0) -
       (this.keys.left.isDown || this.keys.arrowLeft.isDown ? 1 : 0);
-    frame.moveY =
+    const keyboardMoveY =
       (this.keys.down.isDown || this.keys.arrowDown.isDown ? 1 : 0) -
       (this.keys.up.isDown || this.keys.arrowUp.isDown ? 1 : 0);
-    frame.aimX = pointer.worldX;
-    frame.aimY = pointer.worldY;
-    frame.shooting = !this.suppressPointerInput && pointer.isDown && !pointer.rightButtonDown() && this.selectedSlot <= 3;
+    const mobileShooting = mobileInput.shooting && this.selectedSlot <= 3;
+    const mobileAim = mobileShooting ? this.mobileAimTarget(mobileInput) : undefined;
+    frame.moveX = this.clampAxis(keyboardMoveX + mobileInput.moveX);
+    frame.moveY = this.clampAxis(keyboardMoveY + mobileInput.moveY);
+    frame.aimX = mobileAim?.x ?? pointer.worldX;
+    frame.aimY = mobileAim?.y ?? pointer.worldY;
+    frame.shooting =
+      (!this.suppressPointerInput && pointer.isDown && !pointer.rightButtonDown() && this.selectedSlot <= 3) ||
+      mobileShooting;
     frame.selectedSlot = this.selectedSlot;
     frame.useItem = this.useItemQueued;
     this.useItemQueued = false;
     this.suppressPointerInput = false;
     return frame;
+  }
+
+  private createMobileControls() {
+    const app = document.getElementById("app");
+    if (!app) {
+      return;
+    }
+
+    const root = document.createElement("div");
+    root.className = "mobile-controls";
+    root.innerHTML = `
+      <div class="mobile-joystick" aria-label="移动摇杆">
+        <span class="mobile-joystick-knob"></span>
+      </div>
+      <div class="mobile-buttons" aria-label="移动端操作按钮">
+        <button class="mobile-button mobile-button-fire" type="button" data-mobile-action="fire" aria-label="开火"><strong>开火</strong><span>按住</span></button>
+        <button class="mobile-button mobile-button-weapon" type="button" data-mobile-action="weapon" aria-label="换枪"><strong>换枪</strong><span>E</span></button>
+        <button class="mobile-button mobile-button-item" type="button" data-mobile-action="item" aria-label="用药"><strong>用药</strong><span>护盾/医疗</span></button>
+      </div>
+    `;
+    app.appendChild(root);
+
+    const joystick = root.querySelector<HTMLDivElement>(".mobile-joystick");
+    const joystickKnob = root.querySelector<HTMLDivElement>(".mobile-joystick-knob");
+    if (!joystick || !joystickKnob) {
+      root.remove();
+      return;
+    }
+
+    this.mobileControls = {
+      root,
+      joystick,
+      joystickKnob,
+      moveX: 0,
+      moveY: 0,
+      firePointerIds: new Set<number>(),
+      buttonPointerIds: {},
+      fireQueued: false,
+      weaponCycleQueued: false,
+      useItemQueued: false
+    };
+
+    joystick.addEventListener("pointerdown", (event) => this.handleMobileJoystickDown(event));
+    joystick.addEventListener("pointermove", (event) => this.handleMobileJoystickMove(event));
+    joystick.addEventListener("pointerup", (event) => this.handleMobileJoystickUp(event));
+    joystick.addEventListener("pointercancel", (event) => this.handleMobileJoystickUp(event));
+    for (const button of root.querySelectorAll<HTMLButtonElement>(".mobile-button")) {
+      button.addEventListener("pointerdown", (event) => this.handleMobileButtonDown(event));
+      button.addEventListener("pointerup", (event) => this.handleMobileButtonUp(event));
+      button.addEventListener("pointercancel", (event) => this.handleMobileButtonUp(event));
+      button.addEventListener("lostpointercapture", (event) => this.handleMobileButtonUp(event));
+    }
+  }
+
+  private handleMobileJoystickDown(event: PointerEvent) {
+    const controls = this.mobileControls;
+    if (!controls || controls.joystickPointerId !== undefined) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    this.unlockAudio();
+    controls.joystickPointerId = event.pointerId;
+    controls.joystick.setPointerCapture(event.pointerId);
+    this.updateMobileJoystick(event);
+  }
+
+  private handleMobileJoystickMove(event: PointerEvent) {
+    const controls = this.mobileControls;
+    if (!controls || controls.joystickPointerId !== event.pointerId) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    this.updateMobileJoystick(event);
+  }
+
+  private handleMobileJoystickUp(event: PointerEvent) {
+    const controls = this.mobileControls;
+    if (!controls || controls.joystickPointerId !== event.pointerId) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    controls.joystickPointerId = undefined;
+    controls.moveX = 0;
+    controls.moveY = 0;
+    controls.joystickKnob.style.transform = "translate(-50%, -50%)";
+  }
+
+  private updateMobileJoystick(event: PointerEvent) {
+    const controls = this.mobileControls;
+    if (!controls) {
+      return;
+    }
+    const rect = controls.joystick.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const dx = event.clientX - centerX;
+    const dy = event.clientY - centerY;
+    const distance = Math.hypot(dx, dy);
+    const limitedDistance = Math.min(distance, MOBILE_JOYSTICK_MAX_DISTANCE);
+    const angle = Math.atan2(dy, dx);
+    const knobX = Math.cos(angle) * limitedDistance;
+    const knobY = Math.sin(angle) * limitedDistance;
+    controls.moveX = distance > 8 ? knobX / MOBILE_JOYSTICK_MAX_DISTANCE : 0;
+    controls.moveY = distance > 8 ? knobY / MOBILE_JOYSTICK_MAX_DISTANCE : 0;
+    controls.joystickKnob.style.transform = `translate(calc(-50% + ${knobX}px), calc(-50% + ${knobY}px))`;
+  }
+
+  private handleMobileButtonDown(event: PointerEvent) {
+    const controls = this.mobileControls;
+    const button = event.currentTarget as HTMLButtonElement;
+    const action = button.dataset.mobileAction as MobileButtonId | undefined;
+    if (!controls || !action || controls.buttonPointerIds[action] !== undefined) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    this.unlockAudio();
+    controls.buttonPointerIds[action] = event.pointerId;
+    button.setPointerCapture(event.pointerId);
+    button.classList.add("is-pressed");
+    if (action === "fire") {
+      controls.firePointerIds.add(event.pointerId);
+      controls.fireQueued = true;
+      return;
+    }
+    if (action === "weapon") {
+      controls.weaponCycleQueued = true;
+      return;
+    }
+    controls.useItemQueued = true;
+  }
+
+  private handleMobileButtonUp(event: PointerEvent) {
+    const controls = this.mobileControls;
+    const button = event.currentTarget as HTMLButtonElement;
+    const action = button.dataset.mobileAction as MobileButtonId | undefined;
+    if (!controls || !action || controls.buttonPointerIds[action] !== event.pointerId) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    controls.buttonPointerIds[action] = undefined;
+    button.classList.remove("is-pressed");
+    if (action === "fire") {
+      controls.firePointerIds.delete(event.pointerId);
+    }
+  }
+
+  private consumeMobileInput(): MobileInputSnapshot {
+    const controls = this.mobileControls;
+    if (!controls) {
+      return { moveX: 0, moveY: 0, shooting: false, weaponCycle: false, useItem: false };
+    }
+    const input = {
+      moveX: controls.moveX,
+      moveY: controls.moveY,
+      shooting: controls.firePointerIds.size > 0 || controls.fireQueued,
+      weaponCycle: controls.weaponCycleQueued,
+      useItem: controls.useItemQueued
+    };
+    controls.fireQueued = false;
+    controls.weaponCycleQueued = false;
+    controls.useItemQueued = false;
+    return input;
+  }
+
+  private queueMobileItemUse() {
+    const player = this.state.entities[this.state.playerId];
+    const needsShield = (player?.shield ?? 0) < 60;
+    const needsHealth = (player?.health ?? 0) < (player?.maxHealth ?? 100);
+    if (needsShield && this.state.inventory.shieldPotions > 0) {
+      this.selectedSlot = 4;
+      this.useItemQueued = true;
+      return;
+    }
+    if (needsHealth && this.state.inventory.medkits > 0) {
+      this.selectedSlot = 5;
+      this.useItemQueued = true;
+      return;
+    }
+    if (this.state.inventory.shieldPotions > 0) {
+      this.selectedSlot = 4;
+      return;
+    }
+    if (this.state.inventory.medkits > 0) {
+      this.selectedSlot = 5;
+    }
+  }
+
+  private mobileAimTarget(input: MobileInputSnapshot) {
+    const player = this.state.entities[this.state.playerId];
+    if (!player) {
+      return undefined;
+    }
+    const nearest = Object.values(this.state.entities)
+      .filter(
+        (entity) =>
+          entity.alive &&
+          entity.id !== player.id &&
+          (entity.kind === "bot" || entity.kind === "pve") &&
+          Math.hypot(entity.x - player.x, entity.y - player.y) < 620
+      )
+      .sort((a, b) => Math.hypot(a.x - player.x, a.y - player.y) - Math.hypot(b.x - player.x, b.y - player.y))[0];
+    if (nearest) {
+      return { x: nearest.x, y: nearest.y };
+    }
+    if (Math.hypot(input.moveX, input.moveY) > 0.2) {
+      return { x: player.x + input.moveX * 260, y: player.y + input.moveY * 260 };
+    }
+    const angle = player.aimAngle ?? 0;
+    return { x: player.x + Math.cos(angle) * 260, y: player.y + Math.sin(angle) * 260 };
+  }
+
+  private clampAxis(value: number) {
+    return Math.max(-1, Math.min(1, value));
   }
 
   private startMatch() {
@@ -312,6 +529,7 @@ export class BattleScene extends Phaser.Scene {
     this.unlockAudio();
     this.matchStarted = true;
     this.suppressPointerInput = true;
+    this.setMobileControlsActive(true);
     this.playAudioCue("start");
     this.forceHudUpdate(false);
   }
@@ -365,7 +583,32 @@ export class BattleScene extends Phaser.Scene {
     this.lastHudUpdateMs = Number.NEGATIVE_INFINITY;
     this.lastStormGraphicsUpdateMs = Number.NEGATIVE_INFINITY;
     this.lastStormGraphicsRadius = Number.NaN;
+    this.resetMobileControls();
+    this.setMobileControlsActive(false);
     this.forceHudUpdate(true);
+  }
+
+  private setMobileControlsActive(active: boolean) {
+    this.mobileControls?.root.classList.toggle("is-active", active);
+  }
+
+  private resetMobileControls() {
+    const controls = this.mobileControls;
+    if (!controls) {
+      return;
+    }
+    controls.joystickPointerId = undefined;
+    controls.moveX = 0;
+    controls.moveY = 0;
+    controls.firePointerIds.clear();
+    controls.buttonPointerIds = {};
+    controls.fireQueued = false;
+    controls.weaponCycleQueued = false;
+    controls.useItemQueued = false;
+    controls.joystickKnob.style.transform = "translate(-50%, -50%)";
+    for (const button of controls.root.querySelectorAll(".mobile-button")) {
+      button.classList.remove("is-pressed");
+    }
   }
 
   private createAnimations() {
@@ -888,6 +1131,10 @@ export class BattleScene extends Phaser.Scene {
       return;
     }
     this.lastPhase = this.state.phase;
+    if (this.state.phase !== "playing") {
+      this.resetMobileControls();
+      this.setMobileControlsActive(false);
+    }
     if (this.state.phase === "won") {
       this.playAudioCue("win");
     } else if (this.state.phase === "lost") {

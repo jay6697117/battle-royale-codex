@@ -14,7 +14,7 @@ export class HudController {
   private lastHtml = "";
   private lastSnapshot = "";
 
-  constructor(root: HTMLElement | null, private readonly onStart?: () => void) {
+  constructor(root: HTMLElement | null, private readonly onStart?: () => void, private readonly onRestart?: () => void) {
     if (!root) {
       throw new Error("HUD root is missing");
     }
@@ -188,6 +188,13 @@ export class HudController {
       return;
     }
 
+    const restartButton = (event.target as HTMLElement).closest(".end-state-button");
+    if (restartButton) {
+      event.stopPropagation();
+      this.onRestart?.();
+      return;
+    }
+
     const slot = (event.target as HTMLElement).closest<HTMLButtonElement>(".inventory-slot");
     if (!slot) {
       return;
@@ -250,6 +257,7 @@ export class HudController {
             <p><b>E</b><span>在手枪、霰弹枪、步枪之间切换</span></p>
             <p><b>1 - 5</b><span>直接选择武器或道具槽</span></p>
             <p><b>空格 / 右键</b><span>使用护盾药水或医疗包</span></p>
+            <p><b>手机</b><span>左下摇杆移动，右下按钮开火、换枪、用药</span></p>
           </section>
           <section>
             <h2>道具说明</h2>
@@ -270,7 +278,8 @@ export class HudController {
     return `
       <div class="end-state ${phase}">
         <strong>${phase === "won" ? "胜利" : "已被淘汰"}</strong>
-        <span>按 R 重新开始</span>
+        <span>按 R 或点击按钮重新开始</span>
+        <button class="end-state-button" type="button">重新开始</button>
       </div>
     `;
   }

@@ -369,7 +369,7 @@ Add mobile-friendly controls for touch devices: a virtual movement joystick plus
 - User explicitly requested using an agent team.
 - Team created: `mobile-controls`.
 - Existing uncommitted changes in `BattleScene.ts`, `state.ts`, assets/CSS/build output must not be reverted.
-- Implementation will use Phaser scene overlay controls instead of changing simulation rules.
+- Implementation uses a DOM touch overlay above the Phaser canvas so controls stay large and reachable in portrait mobile view.
 
 ## Phases
 
@@ -377,14 +377,14 @@ Add mobile-friendly controls for touch devices: a virtual movement joystick plus
 |---|---|---|---|
 | 1. Control audit | complete | Locate existing keyboard, pointer, shooting, slot, item, start, and restart handling. | Existing input is in `BattleScene.collectInput` and `createInput`. |
 | 2. Mobile control design | complete | Choose minimal touch layout and action mapping. | Left joystick; right-side fire, switch weapon, use item buttons. |
-| 3. Implementation | in_progress | Add touch overlay state, rendering, pointer handling, and input-frame mapping. | Pending code changes. |
-| 4. Validation | pending | Run typecheck/tests/build and browser/mobile viewport smoke check. | Pending results. |
+| 3. Implementation | complete | Add touch overlay state, rendering, pointer handling, and input-frame mapping. | DOM touch overlay, joystick, fire, weapon, and item controls implemented. |
+| 4. Validation | complete | Run typecheck/tests/build and browser/mobile viewport smoke check. | Typecheck/tests/build passed; mobile smoke screenshot saved. |
 
 ## Decisions
 - Do not add a new dash mechanic because the simulation currently has no dash input or cooldown.
 - Do not add a pickup button because pickups are already collected automatically when the player is close enough.
 - Keep keyboard and mouse behavior unchanged for desktop.
-- Render touch controls inside Phaser with fixed camera scroll factor so they align with the canvas and do not interfere with DOM HUD inventory tooltips.
+- Render touch controls as a DOM overlay above the Phaser canvas so the buttons remain readable in portrait and landscape mobile view.
 
 ## Errors Encountered
 | Error | Attempt | Resolution |

@@ -227,3 +227,9 @@ Original prompt: /Users/zhangjinhui/Desktop/battle-royale-codex/game.png
 - Read existing planning files and appended this task section instead of replacing prior task history.
 - Audited current input path: `BattleScene.createInput`, `BattleScene.collectInput`, `InputFrame`, and simulation pickup/use behavior.
 - Decided to implement joystick + fire + weapon-cycle + use-item controls, not dash/pickup, because dash is not modeled and pickup is automatic.
+- Implemented DOM-based mobile controls overlay and initial validation; typecheck/tests/build passed, but first browser smoke showed quick fire tap was lost after using an item.
+- Fixed quick fire taps with a queued fire press, then re-ran validation successfully: `npm run typecheck`, `npm run test`, `npm run build`, and Playwright mobile smoke.
+- Mobile smoke verified weapon change, item use, short-tap fire, hold fire, and rightward joystick movement; screenshot saved to `output/mobile-controls-smoke.png`.
+- Stopped the local Vite dev server after validation.
+- Applied late team guidance: mobile controls now only show on coarse-pointer devices during active gameplay, and hide on start/end states.
+- Revalidated after visibility change: `npm run typecheck` and `npm run build` passed.

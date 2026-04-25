@@ -215,3 +215,4 @@
 - `src/game/input/actions.ts` has no dash or interact field.
 - `src/game/simulation/state.ts` auto-collects pickups when the player overlaps a pickup, so a separate pickup button is unnecessary.
 - Best minimal mobile mapping: left virtual joystick drives `moveX/moveY`; right fire button sets `shooting`; smaller weapon button cycles slots 1-3; smaller item button selects/uses shield or medkit.
+- Quick fire taps must be queued until the next `collectInput` call, otherwise pointerdown/pointerup can both occur between simulation frames and the shot is lost.

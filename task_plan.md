@@ -325,3 +325,33 @@ Regenerate `public/assets/maps/arena-ground.png` as a 1920x1080 terrain-only bac
 | `${CLAUDE_PLUGIN_ROOT}` was empty for planning catchup script | 1 | Re-ran catchup using explicit skill path `/Users/zhangjinhui/.claude/skills/planning-with-files/scripts/session-catchup.py`. |
 | Image gateway rejected `1920x1080` because 1080 is not divisible by 16 | 1 | Use a divisible candidate size such as `1920x1088`, then crop/post-process to the required 1920x1080 asset size. |
 | Chrome DevTools MCP could not open the default profile because another browser instance was already running | 1 | Avoid repeating the same call; use an isolated context or Playwright browser validation instead. |
+
+---
+
+# Task Plan: Water Collision and Player Visibility Fix
+
+## Goal
+Fix the screenshot-visible issue where non-flying player/monsters can appear inside visible water after the regenerated `arena-ground.png`, while preserving the design that only flying bat-type PvE may cross water. Also add a clear player-owned visual marker so the user can immediately find their own character after each restart.
+
+## Current Status
+- User provided a screenshot showing the player standing inside the southwest pond.
+- Current background was generated from `game.png` style and water shapes no longer exactly match old rectangular `WATER_ZONES`.
+- Existing collision tests pass, so the likely bug is visual/collision misalignment rather than the collision function being entirely absent.
+
+## Phases
+
+| Phase | Status | Purpose | Output |
+|---|---|---|---|
+| 1. Audit | in_progress | Compare visible water, `WATER_ZONES`, spawn points, and movement logic. | Findings and root cause. |
+| 2. Water fix | pending | Adjust collision zones or spawn logic so grounded entities cannot enter visible water. | Updated map logic/tests. |
+| 3. Player visibility fix | pending | Add an obvious player marker for match start/restart. | Phaser visual cue/HUD update. |
+| 4. Validation | pending | Run tests/build and browser smoke validation. | Results in `progress.md`. |
+
+## Decisions
+- Keep bat/flying PvE able to cross water.
+- Prefer aligning `WATER_ZONES` to the visible baked water rather than adding pixel-based collision.
+- Player locator should be obvious but not hide gameplay: use a player-only marker/pulse instead of changing all entity labels.
+
+## Errors Encountered
+| Error | Attempt | Resolution |
+|---|---|---|

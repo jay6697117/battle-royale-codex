@@ -194,6 +194,24 @@ Original prompt: /Users/zhangjinhui/Desktop/battle-royale-codex/game.png
 - Validation passed so far: `npm run test -- src/game/assets/asset-manifest.test.ts src/game/content/map.test.ts`, `npm run typecheck`, `npm run test`, and `npm run build`.
 - Started Vite dev server for browser validation; Chrome DevTools MCP default profile was locked, so browser verification used Playwright instead.
 - Browser validation passed on Vite port 5175 with no application console issues; screenshots saved to `output/arena-ground-game-style-start.png` and `output/arena-ground-game-style-play.png`.
+- User rejected the first baked-wall result as not close enough to `game.png`; regenerated a new v2 candidate at `output/arena-ground-reference-style-v2-1920x1088.png` using `game.png` as the primary style reference.
+- Cropped v2 into `public/assets/maps/arena-ground.png` and created `output/arena-ground-reference-style-v2-collision-audit.png`.
+- Revalidated v2: `npm run typecheck`, targeted asset/map tests, full tests, and `npm run build` all passed.
+- Browser validation for v2 passed on Vite port 5174 with no application console issues; screenshots saved to `output/arena-ground-reference-style-v2-start.png` and `output/arena-ground-reference-style-v2-play.png`.
+
+---
+
+# Progress: Water Collision and Player Visibility Fix
+
+## 2026-04-25
+- User reported screenshot-visible issue: non-flying player appears inside southwest water, and after restart the player is hard to find.
+- Ran planning catchup; it reported unsynced context from the arena-ground v2 work, so current diff and planning files were read before implementing.
+- Appended this task section to `task_plan.md`, `findings.md`, and `progress.md`.
 - Visual review confirmed the new terrain-only background works with runtime walls, bushes, props, enemies, pickups, HUD, and storm overlay.
 - User then selected Scheme C: bake stone walls/ruins into the background, disable runtime wall/ruin drawing, keep `map.ts` collision, and validate in browser using an agent team.
 - Created team `arena-baked-walls-team` with audit, implementation, and QA agents.
+- Updated `tools/build_imagegen_assets.py` so `arena-ground.png` bakes `STRUCTURE_ZONES` walls/ruins and `FOLIAGE_ZONES` large bushes/trees from `map.ts`, while keeping crates/barrels/chests runtime-rendered.
+- Updated `src/phaser/scenes/BattleScene.ts` to skip runtime `wall`, `ruin`, and `bush` feature rendering, preventing duplicated baked scenery.
+- Regenerated assets with `python tools/build_imagegen_assets.py`; `public/assets/maps/arena-ground.png` now includes water, grass, paths, flowers, stones, large foliage, and stone ruins/walls.
+- Created overlay audit `output/arena-ground-baked-walls-collision-audit.png`; water, solid, and foliage zones align with the baked visuals.
+- Validation passed: `npm run typecheck`, `npm run test -- src/game/assets/asset-manifest.test.ts src/game/content/map.test.ts`, `npm run test`, and `npm run build`.

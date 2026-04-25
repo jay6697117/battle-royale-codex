@@ -130,10 +130,26 @@ const PICKUP_RESPAWN_SMALL_STORM_RADIUS = 400;
 const PICKUP_RESPAWN_PLAYER_CLEARANCE = 110;
 const PICKUP_RESPAWN_PICKUP_CLEARANCE = 64;
 const PICKUP_RESPAWN_ATTEMPTS = 80;
+const FIGHTER_SPAWN_CLEARANCE = 24;
+const FIGHTER_SPAWN_MIN_DISTANCE = 130;
+const INITIAL_STORM_RADIUS = 900;
 const WEAPON_PICKUP_TYPES = ["pistol", "rifle", "shotgun"] as const satisfies readonly PickupType[];
 const RESPAWN_PICKUP_TYPES = ["ammo", "medkit", "shield", "coin", "pistol", "rifle", "shotgun"] as const satisfies readonly PickupType[];
 
 type EntityList = EntityState[];
+
+interface FighterSpawn {
+  id: string;
+  kind: "player" | "bot";
+  label: string;
+  role: FighterRole;
+  teamIndex: number;
+}
+
+interface SpawnPosition {
+  x: number;
+  y: number;
+}
 
 interface PveSpawn {
   id: string;
@@ -212,6 +228,32 @@ const PVE_DEFINITIONS: Record<PveType, PveDefinition> = {
   }
 };
 
+const INITIAL_FIGHTER_SPAWNS: FighterSpawn[] = [
+  { id: PLAYER_ID, kind: "player", label: "游侠99", role: "rogue", teamIndex: 1 },
+  { id: "bot_samurai", kind: "bot", label: "像素武士", role: "samurai", teamIndex: 2 },
+  { id: "bot_ninja", kind: "bot", label: "荒野忍者", role: "ninja", teamIndex: 3 },
+  { id: "bot_cowboy", kind: "bot", label: "牛仔枪手", role: "cowboy", teamIndex: 4 },
+  { id: "bot_mage", kind: "bot", label: "秘法法师", role: "mage", teamIndex: 5 }
+];
+
+const SAFE_FIGHTER_SPAWN_POSITIONS: SpawnPosition[] = [
+  { x: 205, y: 185 },
+  { x: 405, y: 260 },
+  { x: 760, y: 185 },
+  { x: 1010, y: 165 },
+  { x: 1515, y: 245 },
+  { x: 1710, y: 410 },
+  { x: 1625, y: 635 },
+  { x: 1390, y: 770 },
+  { x: 1000, y: 900 },
+  { x: 690, y: 850 },
+  { x: 180, y: 845 },
+  { x: 520, y: 520 },
+  { x: 925, y: 520 },
+  { x: 1215, y: 545 },
+  { x: 1760, y: 845 }
+];
+
 const INITIAL_PVE_SPAWNS: PveSpawn[] = [
   { id: "pve_bat_west", pveType: "bat", x: 180, y: 725 },
   { id: "pve_bat_east", pveType: "bat", x: 1505, y: 615 },
@@ -260,11 +302,13 @@ export const createInitialGameState = (): GameState => {
     entities[entity.id] = entity;
   };
 
-  add(createFighter(PLAYER_ID, "player", "游侠99", "rogue", 1, 990, 520));
-  add(createFighter("bot_samurai", "bot", "像素武士", "samurai", 2, 1185, 325));
-  add(createFighter("bot_ninja", "bot", "荒野忍者", "ninja", 3, 900, 185));
-  add(createFighter("bot_cowboy", "bot", "牛仔枪手", "cowboy", 4, 560, 520));
-  add(createFighter("bot_mage", "bot", "秘法法师", "mage", 5, 1090, 710));
+  const fighterPositions = createInitialFighterSpawnPositions();
+  for (const spawn of INITIAL_FIGHTER_SPAWNS) {
+    const position = fighterPositions[spawn.id];
+    if (position) {
+      add(createFighter(spawn.id, spawn.kind, spawn.label, spawn.role, spawn.teamIndex, position.x, position.y));
+    }
+  }
 
   for (const spawn of INITIAL_PVE_SPAWNS) {
     add(createPve(spawn.id, spawn.pveType, spawn.x, spawn.y));
@@ -359,6 +403,50 @@ const stepFixed = (state: GameState, input: InputFrame, deltaMs: number) => {
   applyUsableItem(state, input);
   updateScoreboard(state, entities);
   resolvePhase(state, entities);
+};
+
+const createInitialFighterSpawnPositions = (): Record<string, SpawnPosition> => {
+  const positions = shuffled(SAFE_FIGHTER_SPAWN_POSITIONS);
+  const assignedPositions: SpawnPosition[] = [];
+  const result: Record<string, SpawnPosition> = {};
+
+  for (const spawn of INITIAL_FIGHTER_SPAWNS) {
+    const position =
+      positions.find((candidate) => isValidInitialFighterSpawnPosition(candidate, assignedPositions)) ??
+      positions.find((candidate) => isSafeInitialFighterSpawnPosition(candidate) && !assignedPositions.includes(candidate)) ??
+      findSafeSpawnPosition(WORLD_CENTER_X, WORLD_CENTER_Y, FIGHTER_RADIUS, FIGHTER_SPAWN_CLEARANCE, { kind: spawn.kind });
+    assignedPositions.push(position);
+    result[spawn.id] = position;
+  }
+
+  return result;
+};
+
+const shuffled = <T>(items: readonly T[]): T[] => {
+  const result = [...items];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    const item = result[index]!;
+    result[index] = result[swapIndex]!;
+    result[swapIndex] = item;
+  }
+  return result;
+};
+
+const isValidInitialFighterSpawnPosition = (position: SpawnPosition, assignedPositions: SpawnPosition[]) =>
+  isSafeInitialFighterSpawnPosition(position) &&
+  assignedPositions.every(
+    (assignedPosition) => Math.hypot(assignedPosition.x - position.x, assignedPosition.y - position.y) >= FIGHTER_SPAWN_MIN_DISTANCE
+  );
+
+const isSafeInitialFighterSpawnPosition = (position: SpawnPosition) => {
+  const safeRadius = FIGHTER_RADIUS + FIGHTER_SPAWN_CLEARANCE;
+  const dx = position.x - WORLD_CENTER_X;
+  const dy = position.y - WORLD_CENTER_Y;
+  if (Math.hypot(dx, dy) > INITIAL_STORM_RADIUS - safeRadius) {
+    return false;
+  }
+  return !collidesForMovement({ kind: "player" }, position.x, position.y, safeRadius);
 };
 
 const createFighter = (

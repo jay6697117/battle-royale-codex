@@ -180,15 +180,41 @@ describe("battle royale simulation", () => {
     expect(pveTypes).toContain("golem");
   });
 
-  it("keeps initial pve and pickup spawns out of blocked map zones", () => {
+  it("keeps initial fighter pve and pickup spawns out of blocked map zones", () => {
     const state = createInitialGameState();
     const spawnedEntities = Object.values(state.entities).filter(
-      (entity) => entity.kind === "pve" || entity.kind === "pickup"
+      (entity) => entity.kind === "player" || entity.kind === "bot" || entity.kind === "pve" || entity.kind === "pickup"
     );
 
     expect(spawnedEntities.filter((entity) => entity.kind === "pickup")).toHaveLength(16);
     for (const entity of spawnedEntities) {
       expect(collidesForMovement(entity, entity.x, entity.y, entity.radius + 8)).toBe(false);
+    }
+  });
+
+  it("randomizes initial fighter spawns between safe positions", () => {
+    const originalRandom = Math.random;
+
+    try {
+      Math.random = () => 0;
+      const firstState = createInitialGameState();
+      Math.random = () => 0.99;
+      const secondState = createInitialGameState();
+
+      for (const state of [firstState, secondState]) {
+        const player = requireEntity(state, state.playerId);
+        const samurai = requireEntity(state, "bot_samurai");
+        const fighters = Object.values(state.entities).filter((entity) => entity.kind === "player" || entity.kind === "bot");
+
+        expect(collidesForMovement(samurai, samurai.x, samurai.y, samurai.radius + 8)).toBe(false);
+        expect(collidesForMovement(player, player.x, player.y, player.radius + 8)).toBe(false);
+        expect(new Set(fighters.map((fighter) => `${fighter.x},${fighter.y}`)).size).toBe(fighters.length);
+      }
+
+      expect(requireEntity(firstState, "bot_samurai").x).not.toBe(requireEntity(secondState, "bot_samurai").x);
+      expect(requireEntity(firstState, firstState.playerId).x).not.toBe(requireEntity(secondState, secondState.playerId).x);
+    } finally {
+      Math.random = originalRandom;
     }
   });
 

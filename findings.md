@@ -186,3 +186,15 @@
 - The 1920x1080 gateway request failed because image dimensions must be divisible by 16, so the successful workflow is 1920x1088 generation followed by centered crop to 1920x1080.
 - Collision overlay review showed no `map.ts` adjustment was needed for the terrain-only version: water boxes still covered the ponds, and solid boxes were grass-only where runtime ruins/walls drew.
 - New user decision on 2026-04-25: switch to Scheme C, bake stone walls/ruins directly into `arena-ground.png`, disable runtime wall/ruin drawing, and keep `map.ts` collision unchanged.
+- The Scheme C implementation also bakes large bush/tree `FOLIAGE_ZONES` into the background and disables runtime bush rendering, because the user explicitly included 大草丛 / 树丛 in the background list.
+- Crates, barrels, and chests are still runtime-rendered and still participate in `SOLID_ZONES`, so pickup/prop visuals remain above the background and do not get baked into the minimap image.
+- The first baked-wall procedural result looked too much like regular copied tiles and did not satisfy the `game.png` reference requirement; the accepted direction is a gateway-generated natural battlefield background with hand-placed-looking walls, organic foliage clusters, darker painterly grass, and softer water edges.
+
+---
+
+# Findings: Water Collision and Player Visibility Fix
+
+## Current Discoveries
+- User screenshot shows the player inside the southwest pond after the regenerated background, so visible water is larger/differently shaped than the old `WATER_ZONES` collision rectangles.
+- Existing `collidesForMovement` semantics should already block player/bot/non-bat PvE on `WATER_ZONES`; if tests pass but screenshot fails, the fix should align collision zones/spawn safety to the new visible water.
+- The user also cannot quickly find their own character after restart; a player-only high-contrast visual marker is needed.

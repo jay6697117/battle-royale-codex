@@ -68,7 +68,6 @@ interface ControlKeys {
   restart: Phaser.Input.Keyboard.Key;
 }
 
-const TILE_SIZE = 32;
 const HUD_UPDATE_INTERVAL_MS = 100;
 const STORM_GRAPHICS_UPDATE_INTERVAL_MS = 83;
 const STORM_RADIUS_REDRAW_THRESHOLD = 1.5;
@@ -348,7 +347,7 @@ export class BattleScene extends Phaser.Scene {
 
   private createPropLayer() {
     for (const feature of MAP_FEATURES) {
-      if (feature.kind === "water") {
+      if (feature.kind === "water" || feature.kind === "wall" || feature.kind === "ruin") {
         continue;
       }
       if (feature.kind === "bush") {
@@ -369,23 +368,6 @@ export class BattleScene extends Phaser.Scene {
           .setDisplaySize(feature.width, feature.height)
           .setDepth(25);
         continue;
-      }
-      this.createRuin(feature.x, feature.y, feature.width, feature.height);
-    }
-  }
-
-  private createRuin(x: number, y: number, width: number, height: number) {
-    const cols = Math.max(1, Math.ceil(width / TILE_SIZE));
-    const rows = Math.max(1, Math.ceil(height / TILE_SIZE));
-    for (let row = 0; row < rows; row += 1) {
-      for (let col = 0; col < cols; col += 1) {
-        const tileWidth = Math.min(TILE_SIZE, width - col * TILE_SIZE);
-        const tileHeight = Math.min(TILE_SIZE, height - row * TILE_SIZE);
-        const frame = row === 0 || col === 0 || row === rows - 1 || col === cols - 1 ? (col + row) % 4 : 4 + ((col + row) % 4);
-        const tile = this.add.image(x + col * TILE_SIZE, y + row * TILE_SIZE, TextureKey.RuinsTiles, frame);
-        tile.setOrigin(0, 0);
-        tile.setCrop(0, 0, tileWidth, tileHeight);
-        tile.setDepth(18 + (y + row * TILE_SIZE) / 10_000);
       }
     }
   }

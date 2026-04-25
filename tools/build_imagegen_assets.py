@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import random
+import re
 from pathlib import Path
 from typing import Iterable
 
@@ -17,6 +18,8 @@ Box = tuple[int, int, int, int]
 NormBox = tuple[float, float, float, float]
 Zone = tuple[int, int, int, int]
 
+TILE_SIZE = 32
+
 WATER_ZONES: list[Zone] = [
     (275, 640, 310, 56),
     (270, 696, 168, 139),
@@ -25,6 +28,26 @@ WATER_ZONES: list[Zone] = [
     (1105, 125, 253, 120),
     (1105, 245, 175, 75),
 ]
+
+
+def map_zones(name: str) -> list[Zone]:
+    map_path = ROOT / "src" / "game" / "content" / "map.ts"
+    source = map_path.read_text()
+    match = re.search(rf"export const {name}: RectZone\[] = \[(.*?)\];", source, re.S)
+    if match is None:
+        raise RuntimeError(f"{name} not found in {map_path}")
+    return [
+        (int(x), int(y), int(width), int(height))
+        for x, y, width, height in re.findall(
+            r"x: (\d+), y: (\d+), width: (\d+), height: (\d+)",
+            match.group(1),
+        )
+    ]
+
+
+def map_structure_zones() -> list[Zone]:
+    return map_zones("STRUCTURE_ZONES")
+
 
 def rgba(hex_value: str, alpha: int = 255) -> Color:
     value = hex_value.lstrip("#")
@@ -255,6 +278,70 @@ def tile_material(material: Image.Image, size: tuple[int, int], seed: int) -> Im
                 tile = ImageOps.flip(tile)
             base.alpha_composite(tile, (x, y))
     return base.crop((0, 0, size[0], size[1]))
+
+
+def tile_frames(material: Image.Image, count: int, rng: random.Random, transparent: bool = False) -> Image.Image:
+    frames: list[Image.Image] = []
+    source = resize_cover(material, (320, 320), Image.Resampling.NEAREST)
+    for index in range(count):
+        x = rng.randint(0, source.width - TILE_SIZE * 2)
+        y = rng.randint(0, source.height - TILE_SIZE * 2)
+        frame = source.crop((x, y, x + TILE_SIZE * 2, y + TILE_SIZE * 2)).resize((TILE_SIZE, TILE_SIZE), Image.Resampling.NEAREST)
+        if transparent:
+            mask = Image.new("L", (TILE_SIZE, TILE_SIZE), 0)
+            mask_draw = ImageDraw.Draw(mask)
+            if index % 3 == 0:
+                mask_draw.rounded_rectangle((2, 2, 30, 29), radius=2, fill=255)
+            elif index % 3 == 1:
+                mask_draw.polygon([(2, 3), (31, 1), (28, 24), (4, 31)], fill=255)
+            else:
+                mask_draw.ellipse((-1, 2, 33, 31), fill=255)
+            frame.putalpha(mask)
+        else:
+            frame.putalpha(255)
+        frames.append(frame)
+    return make_strip(frames)
+
+
+def make_runtime_ruin_tiles(materials: dict[str, Image.Image]) -> Image.Image:
+    rng = random.Random(7100)
+    tile_frames(materials["grass"], 24, rng)
+    tile_frames(materials["water"], 8, rng)
+    return tile_frames(materials["ruin"], 12, rng, True)
+
+
+def bake_structure_zones(target: Image.Image, materials: dict[str, Image.Image]) -> None:
+    tiles = make_runtime_ruin_tiles(materials)
+    for x, y, width, height in map_structure_zones():
+        cols = max(1, math.ceil(width / TILE_SIZE))
+        rows = max(1, math.ceil(height / TILE_SIZE))
+        for row in range(rows):
+            for col in range(cols):
+                tile_width = min(TILE_SIZE, width - col * TILE_SIZE)
+                tile_height = min(TILE_SIZE, height - row * TILE_SIZE)
+                frame = (col + row) % 4 if row == 0 or col == 0 or row == rows - 1 or col == cols - 1 else 4 + ((col + row) % 4)
+                tile = tiles.crop((frame * TILE_SIZE, 0, frame * TILE_SIZE + tile_width, tile_height))
+                target.alpha_composite(tile, (x + col * TILE_SIZE, y + row * TILE_SIZE))
+
+
+def make_runtime_foliage_tiles(materials: dict[str, Image.Image]) -> Image.Image:
+    foliage_frames: list[Image.Image] = []
+    foliage_source = resize_cover(materials["foliage"], (256, 256), Image.Resampling.NEAREST)
+    for index in range(8):
+        crop = foliage_source.crop((index * 19 % 180, index * 31 % 180, index * 19 % 180 + 72, index * 31 % 180 + 72))
+        frame = crop.resize((TILE_SIZE, TILE_SIZE), Image.Resampling.NEAREST)
+        mask = Image.new("L", (TILE_SIZE, TILE_SIZE), 0)
+        draw = ImageDraw.Draw(mask)
+        if index < 5:
+            draw.ellipse((2, 3, 30, 29), fill=255)
+            draw.ellipse((8, 0, 26, 23), fill=220)
+        else:
+            draw.line((16, 31, 14, 8), fill=255, width=3)
+            draw.line((16, 25, 25, 13), fill=220, width=3)
+            draw.line((15, 25, 7, 14), fill=220, width=3)
+        frame.putalpha(mask.filter(ImageFilter.GaussianBlur(0.25)))
+        foliage_frames.append(frame)
+    return make_strip(foliage_frames)
 
 
 def paste_material(target: Image.Image, material: Image.Image, mask: Image.Image, tint: tuple[float, float, float] = (1, 1, 1)) -> None:
@@ -542,6 +629,7 @@ def generate_environment() -> dict[str, Image.Image]:
         else:
             detail_draw.line((x, y + rng.randint(4, 9), x + rng.randint(-2, 2), y), fill=rgba("#e7efc0", rng.randint(55, 100)), width=1)
     ground.alpha_composite(detail_layer)
+    bake_structure_zones(ground, materials)
 
     save_rgb(ground, "maps/arena-ground.png")
     save_rgb(resize_cover(materials["storm"], (512, 512), Image.Resampling.NEAREST), "fx/storm-sea.png")
@@ -551,49 +639,11 @@ def generate_environment() -> dict[str, Image.Image]:
 def generate_tiles(materials: dict[str, Image.Image]) -> None:
     rng = random.Random(7100)
 
-    def tile_frames(material: Image.Image, count: int, transparent: bool = False) -> Image.Image:
-        frames: list[Image.Image] = []
-        source = resize_cover(material, (320, 320), Image.Resampling.NEAREST)
-        for index in range(count):
-            x = rng.randint(0, source.width - 64)
-            y = rng.randint(0, source.height - 64)
-            frame = source.crop((x, y, x + 64, y + 64)).resize((32, 32), Image.Resampling.NEAREST)
-            if transparent:
-                mask = Image.new("L", (32, 32), 0)
-                mask_draw = ImageDraw.Draw(mask)
-                if index % 3 == 0:
-                    mask_draw.rounded_rectangle((2, 2, 30, 29), radius=2, fill=255)
-                elif index % 3 == 1:
-                    mask_draw.polygon([(2, 3), (31, 1), (28, 24), (4, 31)], fill=255)
-                else:
-                    mask_draw.ellipse((-1, 2, 33, 31), fill=255)
-                frame.putalpha(mask)
-            else:
-                frame.putalpha(255)
-            frames.append(frame)
-        return make_strip(frames)
+    save_rgba(tile_frames(materials["grass"], 24, rng), "tiles/grass-tiles.png")
+    save_rgba(tile_frames(materials["water"], 8, rng), "tiles/water-tiles.png")
+    save_rgba(tile_frames(materials["ruin"], 12, rng, True), "tiles/ruins-tiles.png")
 
-    save_rgba(tile_frames(materials["grass"], 24), "tiles/grass-tiles.png")
-    save_rgba(tile_frames(materials["water"], 8), "tiles/water-tiles.png")
-    save_rgba(tile_frames(materials["ruin"], 12, True), "tiles/ruins-tiles.png")
-
-    foliage_frames: list[Image.Image] = []
-    foliage_source = resize_cover(materials["foliage"], (256, 256), Image.Resampling.NEAREST)
-    for index in range(8):
-        crop = foliage_source.crop((index * 19 % 180, index * 31 % 180, index * 19 % 180 + 72, index * 31 % 180 + 72))
-        frame = crop.resize((32, 32), Image.Resampling.NEAREST)
-        mask = Image.new("L", (32, 32), 0)
-        draw = ImageDraw.Draw(mask)
-        if index < 5:
-            draw.ellipse((2, 3, 30, 29), fill=255)
-            draw.ellipse((8, 0, 26, 23), fill=220)
-        else:
-            draw.line((16, 31, 14, 8), fill=255, width=3)
-            draw.line((16, 25, 25, 13), fill=220, width=3)
-            draw.line((15, 25, 7, 14), fill=220, width=3)
-        frame.putalpha(mask.filter(ImageFilter.GaussianBlur(0.25)))
-        foliage_frames.append(frame)
-    save_rgba(make_strip(foliage_frames), "tiles/foliage-tiles.png")
+    save_rgba(make_runtime_foliage_tiles(materials), "tiles/foliage-tiles.png")
 
 
 def extract_character_poses() -> dict[str, dict[str, Image.Image]]:

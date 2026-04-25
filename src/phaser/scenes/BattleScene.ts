@@ -22,7 +22,7 @@ import {
   type GameState,
   type PickupType
 } from "../../game/simulation/state";
-import { HudController } from "../../ui/hud/HudController";
+import { HudController, type ViewportBounds } from "../../ui/hud/HudController";
 import {
   STORM_EDGE_PROFILE,
   buildStormEdgePoints,
@@ -122,8 +122,8 @@ export class BattleScene extends Phaser.Scene {
     this.createInput();
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
     this.cameras.main.centerOn(WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
-    this.scale.on("resize", () => this.hud.update(this.state, Object.values(this.state.entities), !this.matchStarted));
-    this.hud.update(this.state, Object.values(this.state.entities), true);
+    this.scale.on("resize", () => this.hud.update(this.state, Object.values(this.state.entities), !this.matchStarted, this.getViewportBounds()));
+    this.hud.update(this.state, Object.values(this.state.entities), true, this.getViewportBounds());
     window.__battleState = this.state;
   }
 
@@ -255,12 +255,22 @@ export class BattleScene extends Phaser.Scene {
       return;
     }
     this.lastHudUpdateMs = timeMs;
-    this.hud.update(this.state, entities, !this.matchStarted);
+    this.hud.update(this.state, entities, !this.matchStarted, this.getViewportBounds());
   }
 
   private forceHudUpdate(showStartNotice: boolean) {
     this.lastHudUpdateMs = this.time.now;
-    this.hud.update(this.state, Object.values(this.state.entities), showStartNotice);
+    this.hud.update(this.state, Object.values(this.state.entities), showStartNotice, this.getViewportBounds());
+  }
+
+  private getViewportBounds(): ViewportBounds {
+    const canvasRect = this.scale.canvas.getBoundingClientRect();
+    return {
+      left: canvasRect.left,
+      top: canvasRect.top,
+      width: canvasRect.width,
+      height: canvasRect.height
+    };
   }
 
   private restartMatch() {
@@ -650,7 +660,10 @@ export class BattleScene extends Phaser.Scene {
     } else if (entity.kind === "pve") {
       const hurt = (entity.health ?? 0) < view.lastHealth;
       this.playEntityAnimation(view, hurt ? this.hurtAnimationForPve(entity) : this.animationForPve(entity));
-      view.sprite.setFlipX(Math.sin(this.time.now / 500 + entity.x) < 0);
+      const dx = entity.x - view.lastX;
+      if (Math.abs(dx) > 0.6) {
+        view.sprite.setFlipX(dx < 0);
+      }
     } else if (entity.kind === "player" || entity.kind === "bot") {
       const dx = entity.x - view.lastX;
       const dy = entity.y - view.lastY;

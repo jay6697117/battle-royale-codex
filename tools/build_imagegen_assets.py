@@ -17,28 +17,6 @@ Box = tuple[int, int, int, int]
 NormBox = tuple[float, float, float, float]
 Zone = tuple[int, int, int, int]
 
-STRUCTURE_ZONES: list[Zone] = [
-    (265, 405, 170, 54),
-    (298, 455, 54, 154),
-    (455, 620, 280, 50),
-    (680, 365, 180, 48),
-    (555, 78, 50, 118),
-    (1092, 58, 170, 62),
-    (1455, 135, 136, 62),
-    (1288, 408, 48, 194),
-    (1390, 420, 72, 50),
-    (1482, 688, 155, 54),
-    (1100, 835, 150, 56),
-    (1165, 900, 54, 110),
-]
-
-PROP_SOLID_ZONES: list[Zone] = [
-    (1488, 908, 64, 64),
-    (1533, 878, 64, 64),
-    (598, 748, 64, 64),
-    (658, 68, 64, 64),
-]
-
 WATER_ZONES: list[Zone] = [
     (275, 640, 310, 56),
     (270, 696, 168, 139),
@@ -47,19 +25,6 @@ WATER_ZONES: list[Zone] = [
     (1105, 125, 253, 120),
     (1105, 245, 175, 75),
 ]
-
-FOLIAGE_ZONES: list[Zone] = [
-    (100, 470, 140, 155),
-    (605, 78, 84, 124),
-    (870, 210, 110, 140),
-    (1375, 235, 130, 185),
-    (1578, 430, 140, 116),
-    (1168, 765, 112, 150),
-    (1540, 748, 128, 112),
-]
-
-BARREL_ZONE: Zone = (365, 505, 64, 64)
-
 
 def rgba(hex_value: str, alpha: int = 255) -> Color:
     value = hex_value.lstrip("#")
@@ -148,10 +113,12 @@ def resize_contain(
     scale: float = 0.88,
     anchor_y: float = 0.72,
     resample: Image.Resampling = Image.Resampling.NEAREST,
+    min_margin: int = 0,
+    trim_padding: int = 4,
 ) -> Image.Image:
-    subject = trim_alpha(image)
-    max_w = max(1, int(size[0] * scale))
-    max_h = max(1, int(size[1] * scale))
+    subject = trim_alpha(image, padding=trim_padding)
+    max_w = max(1, min(int(size[0] * scale), size[0] - min_margin * 2))
+    max_h = max(1, min(int(size[1] * scale), size[1] - min_margin * 2))
     ratio = min(max_w / max(1, subject.width), max_h / max(1, subject.height))
     resized = subject.resize(
         (max(1, round(subject.width * ratio)), max(1, round(subject.height * ratio))),
@@ -160,7 +127,14 @@ def resize_contain(
     frame = Image.new("RGBA", size, (0, 0, 0, 0))
     x = (size[0] - resized.width) // 2
     y = round(size[1] * anchor_y - resized.height)
-    y = max(0, min(size[1] - resized.height, y))
+    if min_margin > 0 and resized.width <= size[0] - min_margin * 2:
+        x = max(min_margin, min(size[0] - resized.width - min_margin, x))
+    else:
+        x = max(0, min(size[0] - resized.width, x))
+    if min_margin > 0 and resized.height <= size[1] - min_margin * 2:
+        y = max(min_margin, min(size[1] - resized.height - min_margin, y))
+    else:
+        y = max(0, min(size[1] - resized.height, y))
     frame.alpha_composite(resized, (x, y))
     return frame
 
@@ -299,6 +273,21 @@ def paste_material(target: Image.Image, material: Image.Image, mask: Image.Image
     target.alpha_composite(Image.composite(patch, Image.new("RGBA", target.size, (0, 0, 0, 0)), mask))
 
 
+def shift_with_margin(image: Image.Image, dx: int, dy: int, min_margin: int) -> Image.Image:
+    if not dx and not dy:
+        return image
+    alpha = image.getchannel("A").point(lambda value: 255 if value > 10 else 0)
+    bbox = alpha.getbbox()
+    if bbox is None:
+        return image
+    left, top, right, bottom = bbox
+    dx = max(min_margin - left, min(image.width - min_margin - right, dx))
+    dy = max(min_margin - top, min(image.height - min_margin - bottom, dy))
+    shifted = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    shifted.alpha_composite(image, (dx, dy))
+    return shifted
+
+
 def make_sprite_frame(
     subject: Image.Image,
     frame_size: tuple[int, int],
@@ -308,19 +297,17 @@ def make_sprite_frame(
     dx: int = 0,
     dy: int = 0,
     tint: Color | None = None,
+    min_margin: int = 0,
+    trim_padding: int = 4,
 ) -> Image.Image:
     subject = remove_detached_lower_artifacts(subject)
-    frame = resize_contain(subject, frame_size, scale=scale, anchor_y=anchor_y)
+    frame = resize_contain(subject, frame_size, scale=scale, anchor_y=anchor_y, min_margin=min_margin, trim_padding=trim_padding)
     if tint:
         overlay = Image.new("RGBA", frame.size, tint)
         alpha = frame.getchannel("A")
         overlay.putalpha(alpha.point(lambda value: int(value * (tint[3] / 255))))
         frame = Image.alpha_composite(frame, overlay)
-    if dx or dy:
-        shifted = Image.new("RGBA", frame.size, (0, 0, 0, 0))
-        shifted.alpha_composite(frame, (dx, dy))
-        return shifted
-    return frame
+    return shift_with_margin(frame, dx, dy, min_margin)
 
 
 def make_strip(frames: Iterable[Image.Image]) -> Image.Image:
@@ -377,13 +364,6 @@ def generate_environment() -> dict[str, Image.Image]:
         patch_draw.ellipse((x, y, x + w, y + h), fill=color)
     ground.alpha_composite(patch_layer)
 
-    def rounded_mask(boxes: list[Box], radius: int) -> Image.Image:
-        mask = Image.new("L", ground.size, 0)
-        mask_draw = ImageDraw.Draw(mask)
-        for box in boxes:
-            mask_draw.rounded_rectangle(box, radius=radius, fill=255)
-        return mask.filter(ImageFilter.GaussianBlur(1.1))
-
     def organic_water_mask(boxes: list[Box]) -> Image.Image:
         mask = Image.new("L", ground.size, 0)
         mask_draw = ImageDraw.Draw(mask)
@@ -417,34 +397,93 @@ def generate_environment() -> dict[str, Image.Image]:
         return mask.filter(ImageFilter.MaxFilter(5)).filter(ImageFilter.GaussianBlur(1.2)).point(lambda value: 255 if value > 96 else 0)
 
     water_mask = organic_water_mask([rect_box(zone) for zone in WATER_ZONES])
-    shore_mask = water_mask.filter(ImageFilter.MaxFilter(37)).filter(ImageFilter.GaussianBlur(3.2))
-    paste_material(ground, materials["dark_grass"], shore_mask, (0.74, 0.85, 0.68))
+    shore_mask = ImageChops.subtract(water_mask.filter(ImageFilter.MaxFilter(19)), water_mask).filter(ImageFilter.GaussianBlur(1.0))
+    paste_material(ground, materials["dark_grass"], shore_mask, (0.78, 0.88, 0.72))
 
     water_surface = tile_material(materials["water"], ground.size, 7318)
-    water_surface = ImageEnhance.Color(water_surface).enhance(0.95)
-    water_surface = ImageEnhance.Contrast(water_surface).enhance(1.08)
-    ground.alpha_composite(Image.composite(water_surface, Image.new("RGBA", ground.size, (0, 0, 0, 0)), water_mask))
+    water_surface = ImageEnhance.Color(water_surface).enhance(0.45)
+    water_surface = ImageEnhance.Contrast(water_surface).enhance(0.88)
+    water_surface = ImageEnhance.Brightness(water_surface).enhance(0.82)
+    r, g, b, a = water_surface.split()
+    water_surface = Image.merge(
+        "RGBA",
+        (
+            r.point(lambda value: int(value * 0.68)),
+            g.point(lambda value: int(value * 0.86)),
+            b.point(lambda value: int(value * 0.98)),
+            a,
+        ),
+    )
+    water_fill = Image.blend(Image.new("RGBA", ground.size, rgba("#2b7190", 255)), water_surface, 0.34)
+    water_fill.putalpha(water_mask)
+    ground.alpha_composite(water_fill)
 
-    water_edge = ImageChops.subtract(water_mask, water_mask.filter(ImageFilter.MinFilter(13))).filter(ImageFilter.GaussianBlur(0.7))
-    edge_layer = Image.new("RGBA", ground.size, rgba("#052c42", 115))
-    edge_layer.putalpha(water_edge.point(lambda value: int(value * 0.7)))
+    shallow_edge = ImageChops.subtract(water_mask, water_mask.filter(ImageFilter.MinFilter(17))).filter(ImageFilter.GaussianBlur(1.0))
+    shallow_layer = Image.new("RGBA", ground.size, rgba("#4f94a8", 62))
+    shallow_layer.putalpha(shallow_edge.point(lambda value: int(value * 0.38)))
+    ground.alpha_composite(shallow_layer)
+
+    water_edge = ImageChops.subtract(water_mask, water_mask.filter(ImageFilter.MinFilter(7))).filter(ImageFilter.GaussianBlur(0.45))
+    edge_layer = Image.new("RGBA", ground.size, rgba("#0a2d42", 95))
+    edge_layer.putalpha(water_edge.point(lambda value: int(value * 0.52)))
     ground.alpha_composite(edge_layer)
 
     water_detail_layer = Image.new("RGBA", ground.size, (0, 0, 0, 0))
     water_detail_draw = ImageDraw.Draw(water_detail_layer, "RGBA")
-    for _ in range(150):
-        x = rng.randint(250, 1370)
-        y = rng.randint(80, 970)
-        if water_mask.getpixel((x, y)) == 0:
-            continue
-        length = rng.randint(16, 46)
-        water_detail_draw.line((x, y, x + length, y + rng.randint(-2, 2)), fill=rgba("#7ee4ff", rng.randint(26, 70)), width=1)
-    for _ in range(26):
-        x = rng.randint(250, 1370)
-        y = rng.randint(80, 970)
-        if water_mask.getpixel((x, y)) == 0:
-            continue
-        water_detail_draw.ellipse((x, y, x + rng.randint(16, 38), y + rng.randint(5, 13)), fill=rgba("#44c5f0", rng.randint(18, 42)))
+    water_rng = random.Random(8221)
+
+    def water_point_in_box(box: Box) -> tuple[int, int] | None:
+        left, top, right, bottom = box
+        for _ in range(80):
+            x = water_rng.randint(left, right - 1)
+            y = water_rng.randint(top, bottom - 1)
+            if water_mask.getpixel((x, y)) > 0:
+                return x, y
+        return None
+
+    for box in [rect_box(zone) for zone in WATER_ZONES]:
+        left, top, right, bottom = box
+        area = (right - left) * (bottom - top)
+        for _ in range(max(2, area // 7_000)):
+            point = water_point_in_box(box)
+            if point is None:
+                continue
+            x, y = point
+            if water_rng.random() < 0.62:
+                length = water_rng.randint(9, 26)
+                water_detail_draw.line((x, y, x + length, y + water_rng.randint(-1, 1)), fill=rgba("#d8f3f6", water_rng.randint(58, 108)), width=1)
+            else:
+                width = water_rng.randint(16, 34)
+                height = water_rng.randint(5, 12)
+                water_detail_draw.arc((x, y, x + width, y + height), 185, 350, fill=rgba("#d8f3f6", water_rng.randint(48, 92)), width=2)
+        for _ in range(max(3, area // 5_500)):
+            point = water_point_in_box(box)
+            if point is None:
+                continue
+            x, y = point
+            water_detail_draw.point((x, y), fill=rgba("#c7edf2", water_rng.randint(60, 120)))
+            water_detail_draw.point((x + 2, y + water_rng.randint(-1, 1)), fill=rgba("#c7edf2", water_rng.randint(35, 75)))
+
+    def draw_lily(cx: int, cy: int, width: int, height: int) -> None:
+        if water_mask.getpixel((cx, cy)) == 0:
+            return
+        water_detail_draw.ellipse((cx - width // 2, cy - height // 2, cx + width // 2, cy + height // 2), fill=rgba("#78a63a", 210), outline=rgba("#c2dc62", 150), width=1)
+        water_detail_draw.line((cx, cy, cx + width // 2 - 2, cy - height // 2 + 2), fill=rgba("#315c24", 165), width=1)
+        water_detail_draw.arc((cx - width // 2 + 2, cy - height // 2 + 2, cx + width // 2 - 2, cy + height // 2 - 2), 210, 330, fill=rgba("#d8ef7a", 90), width=1)
+
+    for lily in [(354, 742, 22, 14), (420, 880, 18, 12), (500, 920, 21, 14), (1188, 154, 23, 15), (1298, 280, 18, 12), (1230, 292, 17, 11)]:
+        draw_lily(*lily)
+
+    for box in [rect_box(zone) for zone in WATER_ZONES]:
+        for _ in range(2):
+            point = water_point_in_box(box)
+            if point is None:
+                continue
+            x, y = point
+            for blade in range(4):
+                offset = blade * 3
+                water_detail_draw.line((x + offset, y + 11, x + offset + water_rng.randint(-4, 4), y), fill=rgba("#4d8c39", 155), width=1)
+
     water_detail_alpha = ImageChops.multiply(water_detail_layer.getchannel("A"), water_mask)
     water_detail_layer.putalpha(water_detail_alpha)
     ground.alpha_composite(water_detail_layer)
@@ -462,21 +501,6 @@ def generate_environment() -> dict[str, Image.Image]:
         path_draw.line(points, fill=rgba("#eef1cf", 138), width=7, joint="curve")
         path_draw.line(points, fill=rgba("#5d7f4d", 60), width=2, joint="curve")
     ground.alpha_composite(path_layer)
-
-    for zone in STRUCTURE_ZONES:
-        mask = Image.new("L", ground.size, 0)
-        mask_draw = ImageDraw.Draw(mask)
-        mask_draw.rounded_rectangle(rect_box(zone), radius=4, fill=255)
-        paste_material(ground, materials["ruin"], mask)
-
-    foliage_mask = rounded_mask([rect_box(zone) for zone in FOLIAGE_ZONES], 24)
-    paste_material(ground, materials["foliage"], foliage_mask, (0.78, 0.98, 0.74))
-
-    prop_mask = rounded_mask([rect_box(zone) for zone in PROP_SOLID_ZONES], 6)
-    paste_material(ground, materials["ruin"], prop_mask, (1.06, 0.86, 0.66))
-
-    barrel_mask = rounded_mask([rect_box(BARREL_ZONE)], 18)
-    paste_material(ground, materials["ruin"], barrel_mask, (1.0, 0.62, 0.42))
 
     detail_layer = Image.new("RGBA", ground.size, (0, 0, 0, 0))
     detail_draw = ImageDraw.Draw(detail_layer, "RGBA")
@@ -552,7 +576,7 @@ def extract_character_poses() -> dict[str, dict[str, Image.Image]]:
     for row, role in enumerate(roles):
         result[role] = {}
         for col, pose in enumerate(poses):
-            result[role][pose] = crop_grid(source, 4, 5, col, row, 18)
+            result[role][pose] = crop_grid(source, 4, 5, col, row, 8)
     return result
 
 
@@ -568,7 +592,7 @@ def generate_characters() -> None:
         for animation, (count, bobs, shifts, tint) in animation_specs.items():
             base = role_poses[animation]
             frames = [
-                make_sprite_frame(base, (96, 96), scale=0.86, anchor_y=0.82, dx=shifts[index], dy=bobs[index], tint=tint)
+                make_sprite_frame(base, (96, 96), scale=0.8, anchor_y=0.78, dx=shifts[index], dy=bobs[index], tint=tint, min_margin=8, trim_padding=10)
                 for index in range(count)
             ]
             save_rgba(make_strip(frames), f"characters/{role}/{animation}.png")
@@ -579,40 +603,47 @@ def extract_enemy_poses() -> dict[str, list[Image.Image]]:
     rows = ["bat", "slime", "wolf", "spitter", "golem"]
     result: dict[str, list[Image.Image]] = {}
     for row, enemy in enumerate(rows):
-        result[enemy] = [crop_grid(source, 4, 5, col, row, 18) for col in range(4)]
+        result[enemy] = [crop_grid(source, 4, 5, col, row, 8) for col in range(4)]
     return result
 
 
 def enemy_frame(subject: Image.Image, dx: int, dy: int, scale: float, tint: Color | None = None) -> Image.Image:
-    return make_sprite_frame(subject, (96, 96), scale=scale, anchor_y=0.82, dx=dx, dy=dy, tint=tint)
+    return make_sprite_frame(subject, (96, 96), scale=scale, anchor_y=0.78, dx=dx, dy=dy, tint=tint, min_margin=8, trim_padding=10)
 
 
 def generate_enemies() -> None:
     poses = extract_enemy_poses()
+    primary_pose = {
+        "bat": poses["bat"][0],
+        "slime": poses["slime"][0],
+        "wolf": poses["wolf"][0],
+        "spitter": poses["spitter"][0],
+        "golem": poses["golem"][0],
+    }
     enemy_specs = {
         "bat": {
-            "fly": (poses["bat"][0], 6, [0, -4, -2, 2, 4, 1], [0, 0, 0, 0, 0, 0], 0.9, None),
-            "dash": (poses["bat"][1], 4, [0, -1, 1, 0], [0, 4, 8, 3], 0.9, None),
-            "hurt": (poses["bat"][2], 3, [0, 1, 0], [-3, 3, 0], 0.9, rgba("#ff5a5a", 65)),
+            "fly": (primary_pose["bat"], 6, [0, -4, -2, 2, 4, 1], [0, 0, 0, 0, 0, 0], 0.9, None),
+            "dash": (primary_pose["bat"], 4, [0, -1, 1, 0], [0, 4, 8, 3], 0.9, None),
+            "hurt": (primary_pose["bat"], 3, [0, 1, 0], [-3, 3, 0], 0.9, rgba("#ff5a5a", 65)),
         },
         "slime": {
-            "idle": (poses["slime"][0], 4, [0, 1, 0, -1], [0, 0, 0, 0], 0.72, None),
-            "hop": (poses["slime"][1], 6, [0, -4, -7, -4, 0, 1], [0, 0, 1, 0, 0, 0], 0.78, None),
-            "squash": (poses["slime"][2], 3, [2, 0, 1], [0, 0, 0], 0.78, None),
+            "idle": (primary_pose["slime"], 4, [0, 1, 0, -1], [0, 0, 0, 0], 0.72, None),
+            "hop": (primary_pose["slime"], 6, [0, -4, -7, -4, 0, 1], [0, 0, 1, 0, 0, 0], 0.78, None),
+            "squash": (primary_pose["slime"], 3, [2, 0, 1], [0, 0, 0], 0.78, rgba("#ff5a5a", 55)),
         },
         "wolf": {
-            "dash": (poses["wolf"][0], 4, [0, -1, 0, 1], [0, 5, 9, 2], 0.88, None),
-            "hurt": (poses["wolf"][2], 3, [0, 1, 0], [-3, 3, 0], 0.88, rgba("#ff5a5a", 65)),
+            "dash": (primary_pose["wolf"], 4, [0, -1, 0, 1], [0, 5, 9, 2], 0.88, None),
+            "hurt": (primary_pose["wolf"], 3, [0, 1, 0], [-3, 3, 0], 0.88, rgba("#ff5a5a", 65)),
         },
         "spitter": {
-            "idle": (poses["spitter"][0], 4, [0, 1, 0, -1], [0, 0, 0, 0], 0.8, None),
-            "hop": (poses["spitter"][1], 6, [0, -4, -7, -4, 0, 1], [0, 0, 1, 0, 0, 0], 0.82, None),
-            "squash": (poses["spitter"][2], 3, [2, 0, 1], [0, 0, 0], 0.82, None),
+            "idle": (primary_pose["spitter"], 4, [0, 1, 0, -1], [0, 0, 0, 0], 0.8, None),
+            "hop": (primary_pose["spitter"], 6, [0, -4, -7, -4, 0, 1], [0, 0, 1, 0, 0, 0], 0.82, None),
+            "squash": (primary_pose["spitter"], 3, [2, 0, 1], [0, 0, 0], 0.82, rgba("#ff5a5a", 55)),
         },
         "golem": {
-            "idle": (poses["golem"][0], 4, [0, 1, 0, -1], [0, 0, 0, 0], 0.92, None),
-            "hop": (poses["golem"][1], 6, [0, -3, -5, -3, 0, 1], [0, 0, 1, 0, 0, 0], 0.94, None),
-            "squash": (poses["golem"][2], 3, [2, 0, 1], [0, 0, 0], 0.94, None),
+            "idle": (primary_pose["golem"], 4, [0, 1, 0, -1], [0, 0, 0, 0], 0.92, None),
+            "hop": (primary_pose["golem"], 6, [0, -3, -5, -3, 0, 1], [0, 0, 1, 0, 0, 0], 0.94, None),
+            "squash": (primary_pose["golem"], 3, [2, 0, 1], [0, 0, 0], 0.94, rgba("#ff5a5a", 55)),
         },
     }
     for enemy, animations in enemy_specs.items():

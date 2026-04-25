@@ -116,3 +116,58 @@
 - Root cause for water: `public/assets/maps/arena-ground.png` already includes pond art, then `BattleScene.createWaterPatch` tiled `TextureKey.WaterTiles` over the same rectangular water features, creating blocky doubled-blue ponds.
 - Final fix keeps water collision zones unchanged, stops runtime water tile overlays, and improves `tools/build_imagegen_assets.py` so regenerated `arena-ground.png` has organic water masks, shoreline darkening, and small water highlights.
 - Final fix changes `.mini-map` from a large circular generated-grid UI to a smaller 16:9 thumbnail using the real arena-ground image, with a subtler storm circle and smaller dots.
+
+---
+
+# Findings: Monster Sprite Crop and Animation Fix
+
+## Current Discoveries
+- Team `monster-asset-fix` has been created for this task.
+- Source atlas `output/imagegen-sources/source-03-alpha.png` is visually a 5-row x 4-column enemy sheet: row 1 bat, row 2 purple slime, row 3 dark wolf, row 4 green spitter, row 5 stone golem.
+- Current generator extracts each row as four separate poses, then uses different columns as animation bases. This can make one enemy animation cycle through different silhouettes if the generated row columns are not consistent animation frames.
+- Current runtime maps `wolf` normal animation to `wolf/dash`, `spitter` to `spitter/hop`, `golem` to `golem/hop`, `slime` to `slime/hop`, and bats to `bat/fly` in `BattleScene.animationForPve`.
+- Current runtime hurt mappings use `spitter/squash`, `golem/squash`, and `slime/squash`; those are generated from different atlas columns and may visually look like different creatures rather than hurt frames.
+- Generated audit sheet `output/enemy-sprite-audit.png` confirmed the old output had cross-pose/cross-silhouette issues: wolf hurt used a mound-like pose, spitter hop included a long purple projectile/overlay shape, and golem squash became rubble rather than a damaged golem.
+- Fixed generator now uses each enemy row's primary pose for all animations, applying bob/shift/tint variations instead of swapping to different atlas columns. This keeps every animation visually the same creature.
+- Fixed runtime PVE flip logic now follows horizontal movement direction instead of a time-based sine wave, so monsters no longer randomly flip while moving/attacking.
+- Generated audit sheet `output/enemy-sprite-audit-fixed.png` confirms bat, slime, wolf, spitter, and golem animations now keep consistent silhouettes across normal and hurt/squash frames.
+- Late crop-auditor report independently confirmed the same root cause: `source-03-alpha.png` was treated as an implicit row/type + column/action atlas even though those columns were not safe animation frames; some public outputs also contained older mismatched generated PNGs.
+- Late animation-auditor report independently confirmed manifest frame sizes were correct, so the fix should stay at resource generation/mapping level rather than changing spritesheet frame dimensions.
+
+---
+
+# Findings: Baked Background Color Fix
+
+## Current Discoveries
+- User screenshots show wrong colored blocks around barrels, crates, bushes, ruins, and water-edge props.
+- Direct image inspection confirmed `public/assets/props/barrel.png`, `crate.png`, `chest.png`, `tiles/foliage-tiles.png`, and `tiles/ruins-tiles.png` all have transparent alpha where expected.
+- `public/assets/maps/arena-ground.png` is intentionally opaque RGB, but it currently contains baked dark/gray/green placeholder patches for structures, props, foliage, and barrel zones.
+- `BattleScene.createPropLayer` then draws runtime props, foliage clusters, and ruin tiles over the baked ground. This double layering creates the screenshot-visible colored background blocks.
+- Water is no longer duplicated at runtime because water features are skipped in `createPropLayer`; water should remain baked into the map ground.
+- The minimal fix is in `tools/build_imagegen_assets.py`: keep water and terrain details baked into `arena-ground.png`, but stop pasting structure, foliage, prop, and barrel material masks into the ground because those are rendered separately by Phaser.
+- After regeneration, `public/assets/maps/arena-ground.png` is terrain/water only at those locations; runtime crates, barrels, foliage clusters, and ruins now sit directly on grass/water surroundings without the old dark/gray/green blocks.
+
+---
+
+# Findings: Character and Enemy Frame Crop Fix
+
+## Current Discoveries
+- Automated alpha-bound scanning of `public/assets/characters/**/*.png` and `public/assets/enemies/**/*.png` initially flagged 65 frames with margins <= 5 px against their 96x96 frame edge.
+- Character issues were mostly top-edge clipping/tightness: rogue, samurai, and ninja idle/walk/hurt frames had heads, hats, or upper silhouettes at y=0-3; cowboy/mage/ninja shoot frames were tight on the left because weapon poses were shifted.
+- Enemy issues were mostly side-edge tightness: bat fly/dash/hurt and wolf dash/hurt touched or nearly touched the right edge; golem hop/squash had only about 4-5 px side margins.
+- Root cause was in `tools/build_imagegen_assets.py`: character/enemy source cells were cropped with `crop_grid(..., margin=18)`, then fitted large into 96x96 frames, and animation `dx/dy` shifts were applied after fitting without rechecking frame margins.
+- The fix keeps manifest paths, frame sizes, and frame counts unchanged while adding generator-level safety: larger trim padding, smaller fit scale, higher in-frame margins, safer anchor positioning, and clamped animation shifts.
+- Regenerated audit results now flag 0 tight frames. Review outputs: `output/sprite-crop-tight-audit-fixed.png`, `output/sprite-crop-tight-audit-fixed.txt`, and `output/sprite-crop-full-review-fixed.png`.
+
+---
+
+# Findings: Water Visual Reference Fix
+
+## Current Discoveries
+- Reference `game.png` water has muted medium/deep blue fill, compact pond shapes, pixelated but thin dark shoreline, short sparse white ripples, a few lily pads, and small aquatic plants.
+- Current `arena-ground.png` water is too saturated/bright cyan, has too many long white highlight strokes, and has a thick dark green/black halo that makes ponds look like raised blobs instead of recessed water.
+- `output/imagegen-sources/source-01.png` already contains a useful water material, but directly tiling it across large masks makes the whole pond look noisy and glossy.
+- Current code in `tools/build_imagegen_assets.py` creates water through `organic_water_mask`, `shore_mask`, `water_surface`, `water_edge`, and random detail strokes. The fix should tune these exact steps rather than changing runtime Phaser code.
+- Accurate comparison montage saved at `output/water-reference-current-audit.png`.
+- First tuning pass made the water less glossy but too dark/flat, so a second pass restored muted blue contrast, shallow edge tint, sparse short ripples, fixed lily pads, and small aquatic plants.
+- Fixed comparison montage saved at `output/water-reference-fixed-audit.png`; current water is now closer to `game.png` with darker muted fill, thinner edges, and fewer highlights.

@@ -1,6 +1,13 @@
 import { WORLD_HEIGHT, WORLD_WIDTH } from "../../game/content/map";
 import type { EntityState, GameState } from "../../game/simulation/state";
 
+export interface ViewportBounds {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
 export class HudController {
   private activeTooltipSlot: number | null = null;
   private root: HTMLElement;
@@ -18,25 +25,25 @@ export class HudController {
     document.addEventListener("pointermove", (event) => this.handlePointerMove(event));
   }
 
-  update(state: GameState, entities: EntityState[] = Object.values(state.entities), showStartNotice = false) {
-    const snapshot = this.createSnapshot(state, entities, showStartNotice);
+  update(state: GameState, entities: EntityState[] = Object.values(state.entities), showStartNotice = false, viewport?: ViewportBounds) {
+    const snapshot = this.createSnapshot(state, entities, showStartNotice, viewport);
     if (snapshot === this.lastSnapshot) {
       return;
     }
     this.lastSnapshot = snapshot;
 
-    const html = this.render(state, entities, showStartNotice);
+    const html = this.render(state, entities, showStartNotice, viewport);
     if (html !== this.lastHtml) {
       this.root.innerHTML = html;
       this.lastHtml = html;
     }
   }
 
-  private render(state: GameState, entities: EntityState[], showStartNotice: boolean) {
+  private render(state: GameState, entities: EntityState[], showStartNotice: boolean, viewport?: ViewportBounds) {
     const fighters = entities.filter(
       (entity) => entity.kind === "player" || entity.kind === "bot"
     );
-    const hudOcclusion = this.getHudOcclusion(entities);
+    const hudOcclusion = this.getHudOcclusion(entities, viewport);
     const stormSeconds = Math.max(
       0,
       Math.ceil((state.storm.shrinkStartMs + state.storm.shrinkDurationMs - state.storm.elapsedMs) / 1_000)
@@ -281,19 +288,19 @@ export class HudController {
     return Math.max(0, Math.min(100, (value / max) * 100));
   }
 
-  private createSnapshot(state: GameState, entities: EntityState[], showStartNotice: boolean) {
+  private createSnapshot(state: GameState, entities: EntityState[], showStartNotice: boolean, viewport?: ViewportBounds) {
     const stormSeconds = Math.max(
       0,
       Math.ceil((state.storm.shrinkStartMs + state.storm.shrinkDurationMs - state.storm.elapsedMs) / 1_000)
     );
     const entitySnapshot = entities
       .filter((entity) => entity.kind === "player" || entity.kind === "bot" || entity.kind === "pve")
-      .map(
-        (entity) =>
-          `${entity.id}:${entity.alive ? 1 : 0}:${Math.round(entity.x)}:${Math.round(entity.y)}:${Math.ceil(
-            entity.health ?? 0
-          )}:${Math.ceil(entity.shield ?? 0)}`
-      )
+      .map((entity) => {
+        const screenPosition = this.entityScreenPosition(entity, viewport);
+        return `${entity.id}:${entity.alive ? 1 : 0}:${Math.round(screenPosition.x)}:${Math.round(
+          screenPosition.y
+        )}:${Math.round(screenPosition.radius)}:${Math.ceil(entity.health ?? 0)}:${Math.ceil(entity.shield ?? 0)}`;
+      })
       .join("|");
 
     return [
@@ -301,6 +308,7 @@ export class HudController {
       state.phase,
       stormSeconds,
       Math.round(state.storm.radius),
+      viewport ? `${Math.round(viewport.left)}:${Math.round(viewport.top)}:${Math.round(viewport.width)}:${Math.round(viewport.height)}` : "no-viewport",
       state.inventory.selectedSlot,
       state.inventory.pistolAmmo,
       state.inventory.shotgunAmmo,
@@ -320,23 +328,54 @@ export class HudController {
     ].join(";");
   }
 
-  private getHudOcclusion(allEntities: EntityState[]) {
+  private getHudOcclusion(allEntities: EntityState[], viewport?: ViewportBounds) {
+    const elements = {
+      left: this.root.querySelector<HTMLElement>(".hud-left"),
+      topRight: this.root.querySelector<HTMLElement>(".hud-top-right"),
+      miniMap: this.root.querySelector<HTMLElement>(".mini-map"),
+      progression: this.root.querySelector<HTMLElement>(".progression-panel"),
+      inventory: this.root.querySelector<HTMLElement>(".inventory")
+    };
     const entities = allEntities.filter(
       (entity) => entity.alive && (entity.kind === "player" || entity.kind === "bot" || entity.kind === "pve")
     );
-    const hasEntityInRegion = (left: number, top: number, right: number, bottom: number) =>
-      entities.some((entity) => {
-        const x = (entity.x / WORLD_WIDTH) * 100;
-        const y = (entity.y / WORLD_HEIGHT) * 100;
-        return x >= left && x <= right && y >= top && y <= bottom;
-      });
+    const hasEntityTouching = (element: HTMLElement | null) => {
+      if (!element) {
+        return false;
+      }
+      const rect = element.getBoundingClientRect();
+      return entities.some((entity) => this.circleIntersectsRect(this.entityScreenPosition(entity, viewport), rect));
+    };
 
     return {
-      left: hasEntityInRegion(0, 0, 22, 34),
-      topRight: hasEntityInRegion(84, 0, 100, 8),
-      miniMap: hasEntityInRegion(82, 4, 100, 33),
-      progression: hasEntityInRegion(37, 0, 63, 13),
-      inventory: hasEntityInRegion(31, 78, 69, 100)
+      left: hasEntityTouching(elements.left),
+      topRight: hasEntityTouching(elements.topRight),
+      miniMap: hasEntityTouching(elements.miniMap),
+      progression: hasEntityTouching(elements.progression),
+      inventory: hasEntityTouching(elements.inventory)
     };
+  }
+
+  private entityScreenPosition(entity: EntityState, viewport?: ViewportBounds) {
+    const fallbackRect = this.root.getBoundingClientRect();
+    const gameLeft = viewport?.left ?? fallbackRect.left;
+    const gameTop = viewport?.top ?? fallbackRect.top;
+    const gameWidth = viewport?.width ?? fallbackRect.width;
+    const gameHeight = viewport?.height ?? fallbackRect.height;
+    const scale = Math.min(gameWidth / WORLD_WIDTH, gameHeight / WORLD_HEIGHT);
+
+    return {
+      x: gameLeft + (entity.x / WORLD_WIDTH) * gameWidth,
+      y: gameTop + (entity.y / WORLD_HEIGHT) * gameHeight,
+      radius: Math.max(6, entity.radius * scale)
+    };
+  }
+
+  private circleIntersectsRect(circle: { x: number; y: number; radius: number }, rect: DOMRect) {
+    const closestX = Math.max(rect.left, Math.min(circle.x, rect.right));
+    const closestY = Math.max(rect.top, Math.min(circle.y, rect.bottom));
+    const dx = circle.x - closestX;
+    const dy = circle.y - closestY;
+    return dx * dx + dy * dy <= circle.radius * circle.radius;
   }
 }

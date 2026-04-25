@@ -160,3 +160,133 @@ Fix the screenshot-visible issues where the minimap/safe-zone overlay is too dom
 | Error | Attempt | Resolution |
 |---|---|---|
 | Duplicate old planning error row prevented a targeted append edit | 1 | Rewrote `task_plan.md` from the already-read full content and appended the new section. |
+
+---
+
+# Task Plan: Monster Sprite Crop and Animation Fix
+
+## Goal
+Audit and fix screenshot-visible monster issues where some monsters are cropped incorrectly, show wrong source art, or play mismatched animations.
+
+## Current Status
+- Team created: `monster-asset-fix`.
+- User explicitly requested agent team execution.
+- Existing asset and water/minimap changes are intentionally present and must not be reverted.
+- Visual references are Image #4 and Image #5 in this conversation.
+
+## Phases
+
+| Phase | Status | Purpose | Output |
+|---|---|---|---|
+| 1. Sprite crop audit | complete | Inspect source atlases, enemy crop boxes, and generated enemy PNGs. | Findings updated; audit sheets generated. |
+| 2. Animation mapping audit | complete | Inspect PVE type to spritesheet/animation selection in Phaser. | Findings updated; movement flip bug fixed. |
+| 3. Implementation | complete | Apply minimal generator/render mapping fixes and regenerate affected assets. | Updated enemy PNGs and runtime flip logic. |
+| 4. Validation | complete | Run tests/build and browser screenshot verification. | Typecheck/tests/build passed; browser screenshot saved. |
+
+## Decisions
+- Preserve enemy asset paths, frame dimensions, frame counts, and manifest keys unless validation proves a mismatch.
+- Prefer fixing crop/mapping logic before requesting new image generation.
+- Do not change gameplay stats or collision behavior.
+
+## Errors Encountered
+| Error | Attempt | Resolution |
+|---|---|---|
+| Browser click on start button timed out | 1 | Used Enter key to start the game instead of repeating the same click action. |
+| Generic errors-table edit matched older sections too | 1 | Re-read the current monster section and retried with full section context. |
+| Team cleanup failed because one teammate was still active | 1 | Sent another shutdown request to the remaining active `enemy-crop-auditor`. |
+
+---
+
+# Task Plan: Baked Background Color Fix
+
+## Goal
+Fix screenshot-visible wrong background color blocks behind barrels, crates, bushes, and ruin/water-edge objects without changing gameplay collision, asset paths, or entity rendering behavior.
+
+## Current Status
+- User provided four screenshots showing dark/gray/green rectangular or rounded blocks around rendered map objects.
+- Existing generated asset and scene changes are present and must not be reverted.
+- Root cause investigation confirmed duplicated map layering.
+- Fix and validation are complete.
+
+## Phases
+
+| Phase | Status | Purpose | Output |
+|---|---|---|---|
+| 1. Visual and alpha audit | complete | Check suspicious prop/tile/map PNGs and scene layering. | Findings updated. |
+| 2. Generator fix | complete | Stop baking object/foliage/ruin placeholder materials into the opaque arena ground. | Updated `tools/build_imagegen_assets.py` and regenerated `arena-ground.png`. |
+| 3. Validation | complete | Verify asset dimensions/tests/build and browser screenshots. | Typecheck/tests/build passed; screenshots saved. |
+
+## Decisions
+- Keep runtime prop, foliage, ruin, water collision, and manifest paths unchanged.
+- Preserve the opaque `maps/arena-ground.png` requirement, but make it a terrain-only base instead of a terrain-plus-object-placeholder composite.
+- Do not request new image generation; this is a post-processing/layering issue.
+
+## Errors Encountered
+| Error | Attempt | Resolution |
+|---|---|---|
+| Browser MCP could not attach because an existing Chrome profile was locked | 1 | Used Playwright against the local Vite server instead of retrying the same MCP action. |
+
+---
+
+# Task Plan: Character and Enemy Frame Crop Fix
+
+## Goal
+Audit and fix clipped character and enemy spritesheets under `public/assets/characters` and `public/assets/enemies`, especially heads, weapons, wings, and bodies touching or crossing 96x96 frame boundaries.
+
+## Current Status
+- Team created: `sprite-crop-frame-fix`.
+- User specifically named `/public/assets/characters` and `/public/assets/enemies`.
+- Existing minimap, water, background, HUD, and monster animation changes are present and must not be reverted.
+- Fix is complete: generated character/enemy sheets now keep all detected alpha bounds away from 96x96 frame edges.
+
+## Phases
+
+| Phase | Status | Purpose | Output |
+|---|---|---|---|
+| 1. Character crop audit | complete | Find character frames that touch frame borders or are visually clipped. | Initial audit flagged top-edge character head/hat frames. |
+| 2. Enemy crop audit | complete | Find enemy frames that touch frame borders or are visually clipped. | Initial audit flagged bat/wolf right edges and golem side edges. |
+| 3. Implementation | complete | Adjust generator sizing/anchors/crop padding and regenerate affected assets. | Updated `tools/build_imagegen_assets.py` and regenerated character/enemy PNGs. |
+| 4. Validation | complete | Run tests/build and visual/browser verification. | Border audit now flags 0 frames; typecheck/tests/build and browser smoke passed. |
+
+## Decisions
+- Preserve asset paths, manifest keys, frame dimensions, and frame counts.
+- Fix generator fitting/cropping and generated PNGs only; do not change runtime entity scale or gameplay behavior.
+- Keep the previous enemy primary-pose animation fix; this task only adds frame safety margins around those generated poses.
+
+## Errors Encountered
+| Error | Attempt | Resolution |
+|---|---|---|
+| DevTools screenshot timed out after browser smoke started | 1 | Avoided repeating the same screenshot action and used Playwright for screenshot validation. |
+| Playwright screenshot produced WebGL ReadPixels performance warnings | 1 | Treated them as screenshot-capture noise, filtered those warnings, and confirmed app console issues were 0. |
+
+---
+
+# Task Plan: Water Visual Reference Fix
+
+## Goal
+Make the current arena water look closer to `game.png`: muted compact blue ponds with thin pixel-art shorelines, sparse white ripples, and subtle lily/plant details, while preserving map size, water collision zones, asset paths, and runtime behavior.
+
+## Current Status
+- User reported current water looks strange after the background-color fix.
+- Reference image is `/Users/zhangjinhui/Desktop/battle-royale-codex/game.png`.
+- Current generated water was too bright, too glossy, had overly thick dark green/black shore halos, and used too many long white streaks.
+- Fix and validation are complete.
+
+## Phases
+
+| Phase | Status | Purpose | Output |
+|---|---|---|---|
+| 1. Reference audit | complete | Compare `game.png` water against current `arena-ground.png`. | `output/water-reference-current-audit.png`; findings updated. |
+| 2. Generator fix | complete | Adjust water shape, shore, palette, ripples, lilies, and plants in `tools/build_imagegen_assets.py`. | Regenerated `arena-ground.png`; fixed montage saved. |
+| 3. Validation | complete | Run asset/type/test/build checks and browser screenshot validation. | Typecheck/tests/build passed; browser screenshot saved. |
+
+## Decisions
+- Keep water baked into `public/assets/maps/arena-ground.png`; do not re-enable runtime water tile overlays.
+- Do not change collision rectangles in `src/game/content/map.ts`.
+- Do not regenerate via imagegen; this can be fixed in the packer/post-processing script.
+
+## Errors Encountered
+| Error | Attempt | Resolution |
+|---|---|---|
+| First water tuning pass became too flat and dark | 1 | Restored muted blue contrast, added shallow edge tint, and placed visible sparse ripples/lilies in water zones. |
+| New Vite dev server moved to port 5174 because 5173 was already in use | 1 | Re-ran Playwright validation against `http://127.0.0.1:5174/`. |

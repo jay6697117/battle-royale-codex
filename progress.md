@@ -112,3 +112,69 @@ Original prompt: /Users/zhangjinhui/Desktop/battle-royale-codex/game.png
 - Browser validation passed: start and gameplay screenshots saved to `output/minimap-water-start.png` and `output/minimap-water-play.png`; console only showed Vite/Phaser startup messages.
 - Stopped the local Vite dev server after validation.
 - User chose to keep all generated PNG changes from the asset regeneration, including incidental character/enemy PNG updates.
+
+---
+
+# Progress: Monster Sprite Crop and Animation Fix
+
+## 2026-04-25
+- Created team `monster-asset-fix` for the user-requested agent-team audit and fix.
+- Ran planning catchup with explicit skill path; it showed only the just-submitted monster fix request as unsynced.
+- Checked `git diff --stat`; no output at that moment, so current worktree diff was already in the existing snapshot context.
+- Appended the monster sprite/animation task section to `task_plan.md`.
+- Started two audit agents: `enemy-crop-auditor` and `enemy-animation-auditor`.
+- Direct visual read of `source-03-alpha.png` found a 5x4 enemy atlas where rows are enemy types, but columns are distinct poses/silhouettes rather than guaranteed coherent animation frames.
+- Created `output/enemy-sprite-audit.png` to review current generated enemy strips; it showed inconsistent old hurt/hop/squash outputs for wolf, spitter, and golem.
+- Updated `tools/build_imagegen_assets.py` so enemy animations use each enemy's primary pose plus procedural bob/shift/tint variations, then regenerated assets.
+- Updated `src/phaser/scenes/BattleScene.ts` so PVE sprite horizontal flipping follows movement direction instead of time-based sine flipping.
+- Created `output/enemy-sprite-audit-fixed.png`; fixed strips keep each monster's silhouette consistent across animations.
+- Validation passed: `npm run typecheck`, `npm run test`, and `npm run build`.
+- Browser validation passed with screenshot `output/monster-asset-fix-play.png`; console only showed Vite/Phaser startup messages.
+- Received late audit reports from `enemy-animation-auditor` and `enemy-crop-auditor`; both confirmed the implemented direction: resource-generation cleanup plus movement-direction flipping, not manifest frame-size changes.
+
+---
+
+# Progress: Baked Background Color Fix
+
+## 2026-04-25
+- Started investigation from four user screenshots showing wrong colored blocks behind barrels, crates, bushes, and water/ruin areas.
+- Confirmed prop/tile PNGs have transparency; the visible blocks are not caused by opaque prop PNG backgrounds.
+- Confirmed `arena-ground.png` is an opaque RGB base and currently includes baked object/foliage/ruin placeholder materials that are also drawn again at runtime.
+- Removed structure, foliage, prop, and barrel material pastes from `tools/build_imagegen_assets.py`, then regenerated assets.
+- Verified regenerated `public/assets/maps/arena-ground.png` no longer contains the large baked object/foliage/ruin patches.
+- Validation passed: `npm run typecheck`, `npm run test -- src/game/assets/asset-manifest.test.ts`, `npm run test`, and `npm run build`.
+- Browser MCP could not attach because Chrome profile was already locked, so Playwright was used for browser validation.
+- Browser validation passed with screenshots `output/background-color-fix-play.png` and `output/background-color-fix-closeups.png`; only screenshot-related WebGL performance warnings appeared.
+- Stopped the local Vite dev server after validation.
+
+---
+
+# Progress: Character and Enemy Frame Crop Fix
+
+## 2026-04-25
+- Created team `sprite-crop-frame-fix` for the user-requested audit and fix of `public/assets/characters` and `public/assets/enemies`.
+- Ran planning catchup with explicit skill path; it reported unsynced context from a previous HUD/transparency verification flow, so current diff and planning files were read before starting.
+- Checked current `git diff --stat`; existing visual fixes are present and must be preserved.
+- Appended this task section to `task_plan.md`.
+- Generated initial boundary audit: 65 character/enemy frames had alpha bounds within 5 px of a 96x96 frame edge; report saved to `output/sprite-crop-tight-audit.txt` and montage to `output/sprite-crop-tight-audit.png`.
+- Updated `tools/build_imagegen_assets.py`: added `min_margin` and `trim_padding` to `resize_contain`, added `shift_with_margin`, clamped sprite animation shifts, reduced character/enemy source-grid margin from 18 to 8, and lowered character/enemy fit scale/anchor for safer framing.
+- Regenerated `public/assets/characters` and `public/assets/enemies` with the updated script.
+- Regenerated boundary audit: flagged frames dropped from 65 to 0; outputs saved to `output/sprite-crop-tight-audit-fixed.png`, `output/sprite-crop-tight-audit-fixed.txt`, and `output/sprite-crop-full-review-fixed.png`.
+- Validation passed: `npm run typecheck`, `npm run test`, and `npm run build`.
+- Browser validation passed via Playwright with screenshots `output/sprite-crop-browser-start.png` and `output/sprite-crop-browser-play.png`; app console issues were 0.
+
+---
+
+# Progress: Water Visual Reference Fix
+
+## 2026-04-25
+- Ran planning catchup with explicit skill path; it reported unsynced context from a prior HUD/transparency verification flow, so current diff and planning files were read first.
+- Read reference `game.png` and current `public/assets/maps/arena-ground.png`.
+- Created accurate water comparison montage at `output/water-reference-current-audit.png`.
+- Identified visual gap: current water is too bright/cyan, too glossy, has overly thick dark shore halos, and uses too many long white streaks compared with the reference.
+- Updated `tools/build_imagegen_assets.py` water generation: thinner shore mask, muted blue water fill, shallow edge tint, reduced ripple density, fixed lily pad placement, and fewer aquatic plant details.
+- Regenerated assets and saved fixed comparison montage to `output/water-reference-fixed-audit.png`.
+- Validation passed: `npm run typecheck`, `npm run test -- src/game/assets/asset-manifest.test.ts src/game/content/map.test.ts`, `npm run test`, and `npm run build`.
+- Browser validation used the current Vite server on port 5174 because 5173 was already occupied; screenshot saved to `output/water-visual-fix-play-5174.png`.
+- Browser console only showed Vite/Phaser startup messages and screenshot-related WebGL performance warnings.
+- Stopped the local Vite dev server after validation.

@@ -94,6 +94,9 @@
 - Required fixed sizes include: arena-ground 1920x1080 RGB, storm-sea 512x512 RGB, character/enemy frames 96x96, pickup frames 48x48, FX frames 64x64 except storm-edge 128x96, UI icons 96x96, portraits 56x56, rank badges 34x34.
 - Asset manifest tests require every spritesheet PNG to have alpha, even grass/water tiles; `requiresAlpha` images and UI also need alpha.
 - Current `tools/build_imagegen_assets.py` already crops, trims alpha, resizes, packs strips, composes the map, and writes `public/assets`; it uses Pillow only.
+- Newly generated player/enemy source atlases are RGB-like images with chroma green backgrounds, so `load_source` or a downstream stage must remove green before `trim_alpha`; otherwise whole cells will be treated as opaque sprites.
+- Source QA confirmed no obvious watermark/text, source-01 is usable as a 3x2 material grid, and source-02/source-03 are usable 4x5 grids.
+- Source QA confirmed source-04/source-05 are 1024x1024, so old crop coordinates above y=1024 for storm-edge, storm-arc, HUD icons, and portraits will create empty or wrong crops unless replaced with normalized/proportional crop boxes.
 - Existing script inputs are `output/imagegen-sources/source-01.png`, `source-02-alpha.png`, `source-03-alpha.png`, `source-04-alpha.png`, and `source-05-alpha.png`; `source-06.png` exists but is unused.
 - No `tools/remove_chroma_key.py` exists, so chroma-key removal should be added inside `tools/build_imagegen_assets.py` instead of depending on a missing script.
 - Map alignment must use all `WATER_ZONES`, `STRUCTURE_ZONES`, `FOLIAGE_ZONES`, `PROP_SOLID_ZONES`, and the west barrel from `src/game/content/map.ts`.

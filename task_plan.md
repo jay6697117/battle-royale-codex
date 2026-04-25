@@ -114,9 +114,9 @@ Implement `/Users/zhangjinhui/Desktop/battle-royale-codex/PLAN.md`: regenerate a
 |---|---|---|---|
 | 1. Manifest and asset audit | complete | Confirm exact loaded PNGs, dimensions, frames, alpha/opaque requirements, and tests. | Agent report and `findings.md` update. |
 | 2. Imagegen pipeline audit | complete | Inspect current scripts and decide safest route for Codex gateway atlas generation + packing. | Agent report and `findings.md` update. |
-| 3. Source atlas generation | in_progress | Use `codex-gateway-imagegen` skill for the planned atlas set, using `game.png` style reference where possible. | New source images saved in workspace. |
-| 4. Packing and asset regeneration | pending | Update/run `tools/build_imagegen_assets.py` or related scripts to crop/normalize/pack PNGs into `public/assets/...`. | Updated runtime PNGs, no manifest path changes unless required. |
-| 5. Validation | pending | Run asset manifest test, typecheck, build, and browser screenshot checks. | Test output and screenshots recorded in `progress.md`. |
+| 3. Source atlas generation | complete | Use `codex-gateway-imagegen` skill for the planned atlas set, using `game.png` style reference where possible. | 6 source atlases saved under `output/imagegen-sources`. |
+| 4. Packing and asset regeneration | complete | Update/run `tools/build_imagegen_assets.py` or related scripts to crop/normalize/pack PNGs into `public/assets/...`. | Updated runtime PNGs, no manifest path changes. |
+| 5. Validation | complete | Run asset manifest test, typecheck, build, and browser screenshot checks. | Tests/build passed; screenshots saved under `output/`. |
 
 ## Decisions
 - Keep `src/game/assets/manifest.ts` unchanged unless validation proves a true conflict.

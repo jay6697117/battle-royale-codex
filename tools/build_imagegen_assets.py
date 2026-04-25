@@ -14,6 +14,51 @@ ASSET_ROOT = ROOT / "public" / "assets"
 
 Color = tuple[int, int, int, int]
 Box = tuple[int, int, int, int]
+NormBox = tuple[float, float, float, float]
+Zone = tuple[int, int, int, int]
+
+STRUCTURE_ZONES: list[Zone] = [
+    (265, 405, 170, 54),
+    (298, 455, 54, 154),
+    (455, 620, 280, 50),
+    (680, 365, 180, 48),
+    (555, 78, 50, 118),
+    (1092, 58, 170, 62),
+    (1455, 135, 136, 62),
+    (1288, 408, 48, 194),
+    (1390, 420, 72, 50),
+    (1482, 688, 155, 54),
+    (1100, 835, 150, 56),
+    (1165, 900, 54, 110),
+]
+
+PROP_SOLID_ZONES: list[Zone] = [
+    (1488, 908, 64, 64),
+    (1533, 878, 64, 64),
+    (598, 748, 64, 64),
+    (658, 68, 64, 64),
+]
+
+WATER_ZONES: list[Zone] = [
+    (275, 640, 310, 56),
+    (270, 696, 168, 139),
+    (270, 835, 245, 130),
+    (1165, 92, 90, 33),
+    (1105, 125, 253, 120),
+    (1105, 245, 175, 75),
+]
+
+FOLIAGE_ZONES: list[Zone] = [
+    (100, 470, 140, 155),
+    (605, 78, 84, 124),
+    (870, 210, 110, 140),
+    (1375, 235, 130, 185),
+    (1578, 430, 140, 116),
+    (1168, 765, 112, 150),
+    (1540, 748, 128, 112),
+]
+
+BARREL_ZONE: Zone = (365, 505, 42, 42)
 
 
 def rgba(hex_value: str, alpha: int = 255) -> Color:
@@ -21,11 +66,57 @@ def rgba(hex_value: str, alpha: int = 255) -> Color:
     return (int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16), alpha)
 
 
-def load_source(name: str) -> Image.Image:
+def load_source(name: str, *, remove_green: bool = False) -> Image.Image:
     path = SOURCE_ROOT / name
     if not path.exists():
         raise FileNotFoundError(f"Missing imagegen source: {path}")
-    return Image.open(path).convert("RGBA")
+    image = Image.open(path).convert("RGBA")
+    if remove_green:
+        return remove_chroma_green(image)
+    return image
+
+
+def is_chroma_green(pixel: tuple[int, int, int, int]) -> bool:
+    r, g, b, _ = pixel
+    return g >= 115 and g - r >= 45 and g - b >= 45 and g >= int(max(r, b) * 1.35)
+
+
+def remove_chroma_green(image: Image.Image) -> Image.Image:
+    source = image.convert("RGBA")
+    pixels = source.load()
+    width, height = source.size
+    visited: set[tuple[int, int]] = set()
+    stack: list[tuple[int, int]] = []
+
+    for x in range(width):
+        stack.append((x, 0))
+        stack.append((x, height - 1))
+    for y in range(height):
+        stack.append((0, y))
+        stack.append((width - 1, y))
+
+    while stack:
+        x, y = stack.pop()
+        if (x, y) in visited or not is_chroma_green(pixels[x, y]):
+            continue
+        visited.add((x, y))
+        if x > 0:
+            stack.append((x - 1, y))
+        if x < width - 1:
+            stack.append((x + 1, y))
+        if y > 0:
+            stack.append((x, y - 1))
+        if y < height - 1:
+            stack.append((x, y + 1))
+
+    alpha = source.getchannel("A")
+    mask = Image.new("L", source.size, 0)
+    mask_pixels = mask.load()
+    for x, y in visited:
+        mask_pixels[x, y] = 255
+    mask = mask.filter(ImageFilter.MaxFilter(5)).filter(ImageFilter.GaussianBlur(0.55))
+    source.putalpha(ImageChops.subtract(alpha, mask).point(lambda value: 0 if value < 12 else value))
+    return source
 
 
 def save_rgba(image: Image.Image, relative_path: str) -> None:
@@ -98,6 +189,25 @@ def crop_box(image: Image.Image, box: Box, padding: int = 8) -> Image.Image:
             min(image.height, bottom + padding),
         )
     )
+
+
+def scale_box(box: NormBox, image: Image.Image) -> Box:
+    left, top, right, bottom = box
+    return (
+        round(left * image.width),
+        round(top * image.height),
+        round(right * image.width),
+        round(bottom * image.height),
+    )
+
+
+def crop_norm_box(image: Image.Image, box: NormBox, padding: int = 8) -> Image.Image:
+    return crop_box(image, scale_box(box, image), padding)
+
+
+def rect_box(zone: Zone) -> Box:
+    x, y, width, height = zone
+    return (x, y, x + width, y + height)
 
 
 def crop_grid(image: Image.Image, cols: int, rows: int, col: int, row: int, margin: int = 0) -> Image.Image:
@@ -219,22 +329,14 @@ def generate_environment() -> dict[str, Image.Image]:
         patch_draw.ellipse((x, y, x + w, y + h), fill=color)
     ground.alpha_composite(patch_layer)
 
-    def rounded_mask(boxes: list[tuple[int, int, int, int]], radius: int) -> Image.Image:
+    def rounded_mask(boxes: list[Box], radius: int) -> Image.Image:
         mask = Image.new("L", ground.size, 0)
         mask_draw = ImageDraw.Draw(mask)
         for box in boxes:
             mask_draw.rounded_rectangle(box, radius=radius, fill=255)
         return mask.filter(ImageFilter.GaussianBlur(1.1))
 
-    water_mask = rounded_mask(
-        [
-            (275, 640, 585, 835),
-            (270, 775, 515, 965),
-            (1105, 125, 1358, 320),
-            (1165, 92, 1255, 188),
-        ],
-        34,
-    )
+    water_mask = rounded_mask([rect_box(zone) for zone in WATER_ZONES], 18)
     shore_mask = water_mask.filter(ImageFilter.MaxFilter(23)).filter(ImageFilter.GaussianBlur(2))
     paste_material(ground, materials["dark_grass"], shore_mask, (0.78, 0.86, 0.72))
     paste_material(ground, materials["water"], water_mask)
@@ -253,24 +355,20 @@ def generate_environment() -> dict[str, Image.Image]:
         path_draw.line(points, fill=rgba("#5d7f4d", 60), width=2, joint="curve")
     ground.alpha_composite(path_layer)
 
-    ruin_zones = [
-        (265, 405, 435, 459),
-        (298, 455, 352, 609),
-        (680, 365, 860, 413),
-        (555, 78, 605, 196),
-        (1092, 58, 1262, 120),
-        (1455, 135, 1591, 197),
-        (1288, 408, 1336, 602),
-        (1390, 420, 1462, 470),
-        (1482, 688, 1637, 742),
-        (1100, 835, 1250, 891),
-        (1165, 900, 1219, 1010),
-    ]
-    for box in ruin_zones:
+    for zone in STRUCTURE_ZONES:
         mask = Image.new("L", ground.size, 0)
         mask_draw = ImageDraw.Draw(mask)
-        mask_draw.rounded_rectangle(box, radius=4, fill=255)
+        mask_draw.rounded_rectangle(rect_box(zone), radius=4, fill=255)
         paste_material(ground, materials["ruin"], mask)
+
+    foliage_mask = rounded_mask([rect_box(zone) for zone in FOLIAGE_ZONES], 24)
+    paste_material(ground, materials["foliage"], foliage_mask, (0.78, 0.98, 0.74))
+
+    prop_mask = rounded_mask([rect_box(zone) for zone in PROP_SOLID_ZONES], 6)
+    paste_material(ground, materials["ruin"], prop_mask, (1.06, 0.86, 0.66))
+
+    barrel_mask = rounded_mask([rect_box(BARREL_ZONE)], 18)
+    paste_material(ground, materials["ruin"], barrel_mask, (1.0, 0.62, 0.42))
 
     detail_layer = Image.new("RGBA", ground.size, (0, 0, 0, 0))
     detail_draw = ImageDraw.Draw(detail_layer, "RGBA")
@@ -339,7 +437,7 @@ def generate_tiles(materials: dict[str, Image.Image]) -> None:
 
 
 def extract_character_poses() -> dict[str, dict[str, Image.Image]]:
-    source = load_source("source-02-alpha.png")
+    source = load_source("source-02-alpha.png", remove_green=True)
     roles = ["rogue", "samurai", "ninja", "cowboy", "mage"]
     poses = ["idle", "walk", "shoot", "hurt"]
     result: dict[str, dict[str, Image.Image]] = {}
@@ -369,7 +467,7 @@ def generate_characters() -> None:
 
 
 def extract_enemy_poses() -> dict[str, list[Image.Image]]:
-    source = load_source("source-03-alpha.png")
+    source = load_source("source-03-alpha.png", remove_green=True)
     rows = ["bat", "slime", "wolf", "spitter", "golem"]
     result: dict[str, list[Image.Image]] = {}
     for row, enemy in enumerate(rows):
@@ -415,121 +513,236 @@ def generate_enemies() -> None:
             save_rgba(make_strip(frames), f"enemies/{enemy}/{animation}.png")
 
 
-SOURCE_04_BOXES: dict[str, Box] = {
-    "ammo": (56, 84, 168, 174),
-    "medkit": (252, 78, 362, 180),
-    "shield": (460, 78, 546, 182),
-    "pistol": (624, 94, 714, 180),
-    "rifle": (764, 76, 942, 180),
-    "shotgun": (946, 86, 1092, 180),
-    "coin": (1138, 100, 1202, 170),
-    "crate": (120, 260, 264, 402),
-    "chest": (368, 268, 524, 402),
-    "barrel": (622, 260, 732, 402),
-    "projectile": (854, 292, 1052, 382),
+SOURCE_04_BOXES: dict[str, NormBox] = {
+    "ammo": (0.045, 0.045, 0.135, 0.155),
+    "medkit": (0.17, 0.05, 0.267, 0.15),
+    "shield": (0.3, 0.04, 0.38, 0.15),
+    "pistol": (0.427, 0.045, 0.525, 0.155),
+    "rifle": (0.543, 0.03, 0.685, 0.155),
+    "shotgun": (0.699, 0.033, 0.817, 0.155),
+    "coin": (0.842, 0.057, 0.953, 0.153),
+    "crate": (0.064, 0.199, 0.194, 0.32),
+    "chest": (0.256, 0.196, 0.397, 0.323),
+    "barrel": (0.461, 0.2, 0.555, 0.323),
+    "projectile": (0.604, 0.238, 0.749, 0.286),
 }
 
 
 def generate_pickups_props_fx() -> None:
-    source = load_source("source-04-alpha.png")
+    source = load_source("source-04-alpha.png", remove_green=True)
     pickup_types = ["ammo", "medkit", "shield", "pistol", "rifle", "shotgun", "coin"]
     pickup_subjects: dict[str, Image.Image] = {}
     for kind in pickup_types:
-        subject = resize_contain(crop_box(source, SOURCE_04_BOXES[kind], 10), (48, 48), scale=0.82, anchor_y=0.74)
+        subject = resize_contain(crop_norm_box(source, SOURCE_04_BOXES[kind], 10), (48, 48), scale=0.82, anchor_y=0.74)
         pickup_subjects[kind] = subject
         save_rgba(subject, f"pickups/{kind}.png")
         save_rgba(make_strip(make_pickup_glow_frame(subject, frame) for frame in range(4)), f"pickups/{kind}-glow.png")
 
     for kind in ["crate", "chest", "barrel"]:
-        subject = resize_contain(crop_box(source, SOURCE_04_BOXES[kind], 10), (64, 64), scale=0.9, anchor_y=0.82)
+        subject = resize_contain(crop_norm_box(source, SOURCE_04_BOXES[kind], 10), (64, 64), scale=0.9, anchor_y=0.82)
         save_rgba(subject, f"props/{kind}.png")
 
-    projectile = resize_contain(crop_box(source, SOURCE_04_BOXES["projectile"], 10), (32, 16), scale=1.0, anchor_y=0.76)
+    projectile = resize_contain(crop_norm_box(source, SOURCE_04_BOXES["projectile"], 10), (32, 16), scale=1.0, anchor_y=0.76)
     save_rgba(projectile, "fx/projectile-bullet.png")
 
-    muzzle_boxes = [(88, 468, 234, 562), (288, 460, 454, 574), (496, 468, 666, 574), (704, 480, 808, 570)]
-    hit_boxes = [(96, 616, 246, 728), (306, 612, 442, 726), (524, 624, 632, 720), (734, 628, 840, 714), (918, 482, 960, 558)]
-    ring_boxes = [(88, 802, 242, 880), (300, 816, 464, 882), (514, 826, 664, 882), (722, 834, 864, 882)]
-    arc_boxes = [(40, 1118, 134, 1206), (132, 1156, 456, 1204), (458, 1160, 610, 1210), (608, 1176, 766, 1206)]
+    muzzle_boxes: list[NormBox] = [
+        (0.075, 0.355, 0.22, 0.455),
+        (0.26, 0.355, 0.435, 0.455),
+        (0.475, 0.34, 0.68, 0.465),
+        (0.72, 0.34, 0.95, 0.465),
+    ]
+    hit_boxes: list[NormBox] = [
+        (0.075, 0.48, 0.16, 0.57),
+        (0.225, 0.48, 0.35, 0.58),
+        (0.385, 0.47, 0.535, 0.59),
+        (0.58, 0.465, 0.705, 0.58),
+        (0.775, 0.465, 0.93, 0.59),
+    ]
+    ring_boxes: list[NormBox] = [
+        (0.22, 0.625, 0.35, 0.695),
+        (0.395, 0.625, 0.53, 0.695),
+        (0.575, 0.61, 0.72, 0.695),
+        (0.77, 0.605, 0.94, 0.7),
+    ]
+    arc_boxes: list[NormBox] = [
+        (0.06, 0.728, 0.18, 0.81),
+        (0.20, 0.725, 0.34, 0.815),
+        (0.36, 0.735, 0.50, 0.815),
+        (0.535, 0.72, 0.725, 0.815),
+        (0.735, 0.715, 0.95, 0.825),
+    ]
+    edge_boxes: list[NormBox] = [
+        (0.05, 0.84, 0.14, 0.95),
+        (0.17, 0.84, 0.275, 0.95),
+        (0.29, 0.84, 0.42, 0.95),
+        (0.43, 0.84, 0.57, 0.95),
+        (0.575, 0.84, 0.76, 0.95),
+        (0.76, 0.84, 0.965, 0.955),
+    ]
 
-    save_rgba(make_strip(resize_contain(crop_box(source, box, 8), (64, 64), scale=0.94, anchor_y=0.64) for box in muzzle_boxes), "fx/muzzle-flash.png")
-    save_rgba(make_strip(resize_contain(crop_box(source, box, 8), (64, 64), scale=0.94, anchor_y=0.64) for box in hit_boxes), "fx/hit-spark.png")
+    save_rgba(make_strip(resize_contain(crop_norm_box(source, box, 8), (64, 64), scale=0.94, anchor_y=0.64) for box in muzzle_boxes), "fx/muzzle-flash.png")
+    save_rgba(make_strip(resize_contain(crop_norm_box(source, box, 8), (64, 64), scale=0.94, anchor_y=0.64) for box in hit_boxes), "fx/hit-spark.png")
 
     ring_frames: list[Image.Image] = []
     for index in range(6):
-        box = ring_boxes[min(index, len(ring_boxes) - 1)]
-        frame = resize_contain(crop_box(source, box, 8), (64, 64), scale=0.8 + index * 0.04, anchor_y=0.58)
-        ring_frames.append(frame)
+        frame = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(frame, "RGBA")
+        radius_x = 15 + index * 3
+        radius_y = 6 + index
+        alpha = max(55, 190 - index * 20)
+        draw.ellipse((32 - radius_x, 33 - radius_y, 32 + radius_x, 33 + radius_y), outline=rgba("#ffe66d", alpha), width=3)
+        draw.ellipse((32 - radius_x + 4, 33 - radius_y + 2, 32 + radius_x - 4, 33 + radius_y - 2), outline=rgba("#fff9c7", alpha // 2), width=1)
+        glow = frame.filter(ImageFilter.GaussianBlur(2.2)).point(lambda value: min(255, int(value * 1.25)))
+        ring_frames.append(Image.alpha_composite(glow, frame))
     save_rgba(make_strip(ring_frames), "fx/pickup-ring.png")
 
     arc_frames: list[Image.Image] = []
     for index in range(8):
         box = arc_boxes[index % len(arc_boxes)]
-        frame = resize_contain(crop_box(source, box, 8), (64, 64), scale=0.96, anchor_y=0.6)
+        frame = resize_contain(crop_norm_box(source, box, 8), (64, 64), scale=0.96, anchor_y=0.6)
         if index % 2:
             frame = ImageOps.mirror(frame)
         arc_frames.append(frame)
     save_rgba(make_strip(arc_frames), "fx/storm-arc.png")
 
-    edge_crop = source.crop((32, 1084, 1220, 1238))
     edge_frames: list[Image.Image] = []
     for index in range(8):
-        segment_left = int(index * edge_crop.width / 8)
-        segment_right = int((index + 1) * edge_crop.width / 8)
-        segment = edge_crop.crop((segment_left, 0, segment_right, edge_crop.height))
-        frame = resize_contain(segment, (128, 96), scale=1.0, anchor_y=0.72)
+        box = edge_boxes[index % len(edge_boxes)]
+        frame = resize_contain(crop_norm_box(source, box, 8), (128, 96), scale=1.0, anchor_y=0.72)
         edge_frames.append(add_soft_glow(frame, rgba("#9a5cff", 210), 4, 110))
     save_rgba(make_strip(edge_frames), "fx/storm-edge.png")
 
 
-SOURCE_05_BOXES: dict[str, Box] = {
-    "team_panel": (50, 94, 430, 184),
-    "slot": (474, 100, 614, 240),
-    "slot_active": (666, 100, 802, 236),
-    "stat_pill": (470, 280, 622, 354),
-    "action_button": (484, 474, 604, 596),
-    "minimap_frame": (844, 72, 1212, 440),
+SOURCE_05_BOXES: dict[str, NormBox] = {
+    "team_panel": (0.035, 0.028, 0.41, 0.51),
+    "slot": (0.445, 0.055, 0.57, 0.18),
+    "slot_active": (0.59, 0.055, 0.725, 0.185),
+    "stat_pill": (0.75, 0.078, 0.957, 0.162),
+    "action_button": (0.458, 0.258, 0.612, 0.408),
+    "minimap_frame": (0.655, 0.185, 0.95, 0.485),
 }
 
 
 def generate_ui() -> None:
-    source = load_source("source-05-alpha.png")
-    save_rgba(resize_cover(crop_box(source, SOURCE_05_BOXES["team_panel"], 6), (310, 68), Image.Resampling.NEAREST), "ui/team-panel.png")
-    save_rgba(resize_contain(crop_box(source, SOURCE_05_BOXES["slot"], 8), (92, 92), scale=1.0, anchor_y=0.68), "ui/inventory-slot.png")
-    save_rgba(resize_contain(crop_box(source, SOURCE_05_BOXES["slot_active"], 8), (92, 92), scale=1.0, anchor_y=0.68), "ui/inventory-slot-active.png")
-    save_rgba(resize_cover(crop_box(source, SOURCE_05_BOXES["stat_pill"], 6), (126, 44), Image.Resampling.NEAREST), "ui/stat-pill.png")
-    save_rgba(resize_contain(crop_box(source, SOURCE_05_BOXES["action_button"], 6), (64, 64), scale=0.98, anchor_y=0.68), "ui/action-button.png")
-    save_rgba(resize_contain(crop_box(source, SOURCE_05_BOXES["minimap_frame"], 12), (260, 260), scale=0.98, anchor_y=0.5), "ui/minimap-frame.png")
+    source = load_source("source-05-alpha.png", remove_green=True)
+    save_rgba(resize_cover(crop_norm_box(source, SOURCE_05_BOXES["team_panel"], 6), (310, 68), Image.Resampling.NEAREST), "ui/team-panel.png")
+    save_rgba(resize_contain(crop_norm_box(source, SOURCE_05_BOXES["slot"], 8), (92, 92), scale=1.0, anchor_y=0.68), "ui/inventory-slot.png")
+    save_rgba(resize_contain(crop_norm_box(source, SOURCE_05_BOXES["slot_active"], 8), (92, 92), scale=1.0, anchor_y=0.68), "ui/inventory-slot-active.png")
+    save_rgba(resize_cover(crop_norm_box(source, SOURCE_05_BOXES["stat_pill"], 6), (126, 44), Image.Resampling.NEAREST), "ui/stat-pill.png")
+    save_rgba(resize_contain(crop_norm_box(source, SOURCE_05_BOXES["action_button"], 6), (64, 64), scale=0.98, anchor_y=0.68), "ui/action-button.png")
+    save_rgba(resize_contain(crop_norm_box(source, SOURCE_05_BOXES["minimap_frame"], 12), (260, 260), scale=0.98, anchor_y=0.5), "ui/minimap-frame.png")
 
-    item_boxes = {
-        "pistol": (56, 984, 254, 1178),
-        "rifle": (292, 984, 490, 1178),
-        "shotgun": (528, 984, 726, 1178),
-        "shield": (764, 984, 962, 1178),
-        "medkit": (1000, 984, 1196, 1178),
+    item_boxes: dict[str, NormBox] = {
+        "pistol": (0.07, 0.522, 0.188, 0.642),
+        "shotgun": (0.23, 0.518, 0.401, 0.644),
+        "rifle": (0.43, 0.522, 0.593, 0.644),
+        "shield": (0.639, 0.521, 0.746, 0.646),
+        "medkit": (0.802, 0.525, 0.922, 0.642),
     }
     for kind, box in item_boxes.items():
-        save_rgba(resize_contain(crop_box(source, box, 6), (96, 96), scale=0.88, anchor_y=0.72), f"ui/items/{kind}.png")
+        save_rgba(resize_contain(crop_norm_box(source, box, 6), (96, 96), scale=0.88, anchor_y=0.72), f"ui/items/{kind}.png")
 
-    rank_boxes = [
-        (340, 652, 404, 722),
-        (466, 652, 530, 722),
-        (592, 652, 656, 722),
-        (716, 652, 780, 722),
-        (840, 652, 904, 722),
+    rank_boxes: list[NormBox] = [
+        (0.04, 0.66, 0.205, 0.805),
+        (0.235, 0.66, 0.392, 0.805),
+        (0.43, 0.66, 0.58, 0.805),
+        (0.625, 0.657, 0.78, 0.805),
+        (0.805, 0.66, 0.96, 0.805),
     ]
     for index, box in enumerate(rank_boxes, start=1):
-        save_rgba(resize_contain(crop_box(source, box, 4), (34, 34), scale=0.95, anchor_y=0.6), f"ui/rank-{index}.png")
+        save_rgba(resize_contain(crop_norm_box(source, box, 4), (34, 34), scale=0.95, anchor_y=0.6), f"ui/rank-{index}.png")
 
-    portrait_boxes = {
-        "rogue": (142, 768, 310, 932),
-        "samurai": (342, 768, 510, 932),
-        "ninja": (542, 768, 710, 932),
-        "mage": (742, 768, 910, 932),
-        "cowboy": (942, 768, 1110, 932),
+    portrait_boxes: dict[str, NormBox] = {
+        "rogue": (0.225, 0.807, 0.4, 0.978),
+        "samurai": (0.42, 0.807, 0.595, 0.978),
+        "ninja": (0.03, 0.807, 0.205, 0.978),
+        "cowboy": (0.612, 0.808, 0.788, 0.978),
+        "mage": (0.802, 0.808, 0.98, 0.978),
     }
     for role, box in portrait_boxes.items():
-        save_rgba(resize_contain(crop_box(source, box, 6), (56, 56), scale=0.98, anchor_y=0.72), f"ui/portrait-{role}.png")
+        save_rgba(resize_contain(crop_norm_box(source, box, 6), (56, 56), scale=0.98, anchor_y=0.72), f"ui/portrait-{role}.png")
+
+
+def expected_asset_specs() -> dict[str, tuple[tuple[int, int], str]]:
+    specs: dict[str, tuple[tuple[int, int], str]] = {
+        "maps/arena-ground.png": ((1920, 1080), "RGB"),
+        "fx/storm-sea.png": ((512, 512), "RGB"),
+        "fx/projectile-bullet.png": ((32, 16), "RGBA"),
+        "tiles/grass-tiles.png": ((32 * 24, 32), "RGBA"),
+        "tiles/water-tiles.png": ((32 * 8, 32), "RGBA"),
+        "tiles/ruins-tiles.png": ((32 * 12, 32), "RGBA"),
+        "tiles/foliage-tiles.png": ((32 * 8, 32), "RGBA"),
+        "props/crate.png": ((64, 64), "RGBA"),
+        "props/chest.png": ((64, 64), "RGBA"),
+        "props/barrel.png": ((64, 64), "RGBA"),
+        "fx/muzzle-flash.png": ((64 * 4, 64), "RGBA"),
+        "fx/hit-spark.png": ((64 * 5, 64), "RGBA"),
+        "fx/pickup-ring.png": ((64 * 6, 64), "RGBA"),
+        "fx/storm-arc.png": ((64 * 8, 64), "RGBA"),
+        "fx/storm-edge.png": ((128 * 8, 96), "RGBA"),
+        "ui/team-panel.png": ((310, 68), "RGBA"),
+        "ui/inventory-slot.png": ((92, 92), "RGBA"),
+        "ui/inventory-slot-active.png": ((92, 92), "RGBA"),
+        "ui/stat-pill.png": ((126, 44), "RGBA"),
+        "ui/action-button.png": ((64, 64), "RGBA"),
+        "ui/minimap-frame.png": ((260, 260), "RGBA"),
+    }
+
+    for kind in ["ammo", "medkit", "shield", "pistol", "rifle", "shotgun", "coin"]:
+        specs[f"pickups/{kind}.png"] = ((48, 48), "RGBA")
+        specs[f"pickups/{kind}-glow.png"] = ((48 * 4, 48), "RGBA")
+
+    for role in ["rogue", "samurai", "ninja", "cowboy", "mage"]:
+        specs[f"characters/{role}/idle.png"] = ((96 * 4, 96), "RGBA")
+        specs[f"characters/{role}/walk.png"] = ((96 * 6, 96), "RGBA")
+        specs[f"characters/{role}/shoot.png"] = ((96 * 4, 96), "RGBA")
+        specs[f"characters/{role}/hurt.png"] = ((96 * 3, 96), "RGBA")
+
+    enemy_frames = {
+        "bat/fly": 6,
+        "bat/dash": 4,
+        "bat/hurt": 3,
+        "slime/idle": 4,
+        "slime/hop": 6,
+        "slime/squash": 3,
+        "wolf/dash": 4,
+        "wolf/hurt": 3,
+        "spitter/idle": 4,
+        "spitter/hop": 6,
+        "spitter/squash": 3,
+        "golem/idle": 4,
+        "golem/hop": 6,
+        "golem/squash": 3,
+    }
+    for name, frames in enemy_frames.items():
+        specs[f"enemies/{name}.png"] = ((96 * frames, 96), "RGBA")
+
+    for kind in ["pistol", "shotgun", "rifle", "shield", "medkit"]:
+        specs[f"ui/items/{kind}.png"] = ((96, 96), "RGBA")
+
+    for index in range(1, 6):
+        specs[f"ui/rank-{index}.png"] = ((34, 34), "RGBA")
+
+    for role in ["rogue", "samurai", "ninja", "cowboy", "mage"]:
+        specs[f"ui/portrait-{role}.png"] = ((56, 56), "RGBA")
+
+    return specs
+
+
+def validate_outputs() -> None:
+    failures: list[str] = []
+    for relative_path, (expected_size, expected_mode) in expected_asset_specs().items():
+        path = ASSET_ROOT / relative_path
+        if not path.exists():
+            failures.append(f"{relative_path}: missing")
+            continue
+        with Image.open(path) as image:
+            if image.size != expected_size:
+                failures.append(f"{relative_path}: expected {expected_size}, got {image.size}")
+            if image.mode != expected_mode:
+                failures.append(f"{relative_path}: expected {expected_mode}, got {image.mode}")
+    if failures:
+        raise RuntimeError("Asset validation failed:\n" + "\n".join(failures))
 
 
 def main() -> None:
@@ -539,6 +752,7 @@ def main() -> None:
     generate_enemies()
     generate_pickups_props_fx()
     generate_ui()
+    validate_outputs()
 
 
 if __name__ == "__main__":

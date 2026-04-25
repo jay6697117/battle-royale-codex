@@ -85,3 +85,11 @@ Original prompt: /Users/zhangjinhui/Desktop/battle-royale-codex/game.png
 - Created shared team tasks for manifest audit, pipeline audit, implementation, and validation.
 - Agent audit complete: manifest has exactly 84 loaded PNGs and current `build_imagegen_assets.py` is the correct post-processing script to update.
 - Read `game.png`; target look is rounded high-detail top-down pixel art with purple storm border, readable characters, ponds, ruins, bushes, pickups, and compact HUD.
+- Generated 6 source atlases via `codex-gateway-imagegen`: terrain/materials, full arena reference, players, enemies, pickups/props/fx, and HUD/UI.
+- Viewed player/enemy atlases: style is good and close to reference, but files use chroma green backgrounds instead of real transparency, so the packer must remove green backgrounds before trimming/resizing.
+- Asset auditor completed source QA: no obvious text/watermark; source-01/source-02/source-03 are structurally usable; source-04/source-05 need normalized 1024-based crop logic because old hardcoded lower-row coordinates exceed image bounds.
+- Asset implementer updated `tools/build_imagegen_assets.py`, regenerated `public/assets`, and kept `src/game/assets/manifest.ts` unchanged.
+- Manual review found `pickup-ring.png` still had green fill; fixed it by generating transparent gold pickup-ring frames in the packer, then regenerated assets.
+- Validation passed: `npm test -- src/game/assets/asset-manifest.test.ts`, `npm run typecheck`, and `npm run build`.
+- Browser validation passed with no console warnings/errors. Screenshots saved: `output/plan-md-start-modal-final.png` and `output/plan-md-battle-clear-final.png`.
+- Final battle screenshot includes water, ruins/stone walls, bushes, pickups, PVE enemies, HUD, and storm edge.
